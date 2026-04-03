@@ -1,0 +1,25 @@
+service: weardynamite-backend
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ap-southeast-2
+  stage: ${opt:stage, 'dev'}
+  memorySize: 512
+  timeout: 10
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    PORT: 3001
+  httpApi:
+    cors: true
+
+functions:
+  api:
+    handler: src/handler.handler
+    events:
+      - httpApi:
+          path: '*'
+          method: '*'
+
+plugins:
+  - serverless-plugin-typescript
