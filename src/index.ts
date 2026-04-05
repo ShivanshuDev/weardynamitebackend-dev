@@ -22,6 +22,7 @@ import uploadRoutes from './modules/upload/upload.routes';
 import customizationRoutes from './modules/customization/customization.routes';
 import paymentRoutes from './modules/payment/payment.routes';
 import notificationRoutes from './modules/notification/notification.routes';
+import subscriptionRoutes from './modules/subscription/subscription.routes';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -56,6 +57,7 @@ app.use('/api', uploadRoutes);            // /api/admin/upload/presigned-url
 app.use('/api', customizationRoutes);     // /api/customization/print etc.
 app.use('/api/payment', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {

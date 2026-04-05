@@ -1,5 +1,5 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
-import { GetCommand, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─── Ledger ───────────────────────────────────────────────────────────────────
@@ -51,12 +51,15 @@ export const addTransaction = async (data: { description: string; type: 'Credit'
 };
 
 export const getDailySummary = async (date: string) => {
-  // Retrieve ALL Ledger Items (Using Query instead of full DB Scan)
+  // Retrieve Ledger Items up to target date (Query with Range instead of memory filter)
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
-    KeyConditionExpression: 'GSI1PK = :pk',
-    ExpressionAttributeValues: { ':pk': 'LEDGER' }
+    KeyConditionExpression: 'GSI1PK = :pk AND GSI1SK <= :date',
+    ExpressionAttributeValues: { 
+      ':pk': 'LEDGER',
+      ':date': `DATE#${new Date(date).getTime() + 86400000}` // Buffer one day for precision
+    }
   }));
   
   const allItems = Items || [];
@@ -64,7 +67,7 @@ export const getDailySummary = async (date: string) => {
   // 1. Opening Balance: All transactions before the selected date
   const beforeItems = allItems.filter((i: any) => {
     const itemDate = i.date || i.createdAt || 0;
-    const itemDateStr = typeof itemDate === 'number' ? new Date(itemDate).toISOString().split('T')[0] : itemDate;
+    const itemDateStr = new Date(itemDate).toISOString().split('T')[0];
     return itemDateStr < date;
   });
   const openingCredit = beforeItems.filter((i: any) => i.type === 'Credit').reduce((s: number, i: any) => s + Number(i.amount), 0);
@@ -74,7 +77,7 @@ export const getDailySummary = async (date: string) => {
   // 2. Today's Activity: Transactions on the target date
   const todayItems = allItems.filter((i: any) => {
     const itemDate = i.date || i.createdAt || 0;
-    const itemDateStr = typeof itemDate === 'number' ? new Date(itemDate).toISOString().split('T')[0] : itemDate;
+    const itemDateStr = new Date(itemDate).toISOString().split('T')[0];
     return itemDateStr === date;
   });
   const todayCredit = todayItems.filter((i: any) => i.type === 'Credit').reduce((s: number, i: any) => s + Number(i.amount), 0);
@@ -181,15 +184,20 @@ export const getDashboardStats = async () => {
 };
 
 export const getRevenueChart = async (period: string) => {
+  const days = period === '7d' ? 7 : (period === '14d' || period === '2 Weeks') ? 14 : period === '90d' ? 90 : 30;
+  const startTime = Date.now() - (days * 24 * 60 * 60 * 1000);
+
   const { Items: ledgerEntries } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
-    KeyConditionExpression: 'GSI1PK = :pk',
-    ExpressionAttributeValues: { ':pk': 'LEDGER' }
+    KeyConditionExpression: 'GSI1PK = :pk AND GSI1SK >= :start',
+    ExpressionAttributeValues: { 
+      ':pk': 'LEDGER',
+      ':start': `DATE#${startTime}`
+    }
   }));
   
   const entries = ledgerEntries || [];
-  const days = period === '7d' ? 7 : (period === '14d' || period === '2 Weeks') ? 14 : period === '90d' ? 90 : 30;
   
   const revenueHistory: Record<string, number> = {};
   const expenseHistory: Record<string, number> = {};

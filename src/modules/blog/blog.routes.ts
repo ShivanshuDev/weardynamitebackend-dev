@@ -13,6 +13,7 @@ router.get('/admin/list', auth, admin, BlogController.adminListBlogs);
 router.post('/admin', auth, admin, BlogController.createBlog);
 router.put('/admin/:id', auth, admin, BlogController.updateBlog);
 router.patch('/admin/:id/status', auth, admin, BlogController.patchBlogStatus);
+router.post('/admin/:id/publish', auth, admin, BlogController.publishBlog);
 router.delete('/admin/:id', auth, admin, BlogController.deleteBlog);
 
 export default router;

@@ -1,5 +1,5 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
-import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { addTransaction } from '../ledger/ledger.service';
 

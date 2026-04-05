@@ -43,6 +43,7 @@ export interface Product {
   returnDays: number;
   codAvailable: boolean;
   codCouponApplicable: boolean;
+  specs?: any[];
   
   // Legacy or Internal mapping
   current_stock: number;
@@ -185,40 +186,54 @@ export const getProduct = async (productId: string) => {
 export const listProducts = async (filters: any = {}) => {
   const { page = 1, limit = 10, status, category, subCategory } = filters;
 
-  let filterExpression = '';
-  const expressionAttributeNames: any = {};
-  const expressionAttributeValues: any = { ':pk': 'PRODUCT' };
-
-  if (status) {
-    filterExpression += '#status = :status';
-    expressionAttributeNames['#status'] = 'status';
-    expressionAttributeValues[':status'] = status;
-  }
+  let queryParams: any = {
+    TableName: INVENTORY_TABLE,
+  };
 
   if (category) {
-    if (filterExpression) filterExpression += ' AND ';
-    filterExpression += '#category = :category';
-    expressionAttributeNames['#category'] = 'category';
-    expressionAttributeValues[':category'] = category;
+    // High-Efficiency: Use Category Partition (GSI1)
+    queryParams.IndexName = 'GSI1';
+    queryParams.KeyConditionExpression = 'GSI1PK = :cat';
+    queryParams.ExpressionAttributeValues = { ':cat': `CAT#${category}` };
+    
+    if (status) {
+      queryParams.KeyConditionExpression += ' AND GSI1SK = :stat';
+      queryParams.ExpressionAttributeValues[':stat'] = `STATUS#${status}`;
+    }
+    
+    if (subCategory) {
+      queryParams.FilterExpression = '#subCategory = :sub';
+      queryParams.ExpressionAttributeNames = { '#subCategory': 'subCategory' };
+      queryParams.ExpressionAttributeValues[':sub'] = subCategory;
+    }
+  } else {
+    // Fallback: Use Global Search Partition (GSI4)
+    queryParams.IndexName = 'GSI4';
+    queryParams.KeyConditionExpression = 'GSI4PK = :pk';
+    queryParams.ExpressionAttributeValues = { ':pk': 'PRODUCT' };
+    
+    const filters_arr = [];
+    const names: any = {};
+    const values = queryParams.ExpressionAttributeValues;
+
+    if (status) {
+      filters_arr.push('#st = :st');
+      names['#st'] = 'status';
+      values[':st'] = status;
+    }
+    if (subCategory) {
+      filters_arr.push('#sub = :sub');
+      names['#sub'] = 'subCategory';
+      values[':sub'] = subCategory;
+    }
+
+    if (filters_arr.length > 0) {
+      queryParams.FilterExpression = filters_arr.join(' AND ');
+      queryParams.ExpressionAttributeNames = names;
+    }
   }
 
-  if (subCategory) {
-    if (filterExpression) filterExpression += ' AND ';
-    filterExpression += '#subCategory = :subCategory';
-    expressionAttributeNames['#subCategory'] = 'subCategory';
-    expressionAttributeValues[':subCategory'] = subCategory;
-  }
-
-  const { Items } = await docClient.send(
-    new QueryCommand({
-      TableName: INVENTORY_TABLE,
-      IndexName: 'GSI4',
-      KeyConditionExpression: 'GSI4PK = :pk',
-      FilterExpression: filterExpression || undefined,
-      ExpressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
-      ExpressionAttributeValues: expressionAttributeValues
-    })
-  );
+  const { Items } = await docClient.send(new QueryCommand(queryParams));
 
   const products = Items || [];
   const start = (page - 1) * limit;
