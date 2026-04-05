@@ -24,6 +24,9 @@ router.get('/range', InventoryController.getInventoryByDateRange);
 // Search Products (Line Items)
 router.get('/search/products', InventoryController.searchProductsAPI);
 
+// Search Active Inventory Items (Linkable Items)
+router.get('/active-items', InventoryController.getActiveItemsAPI);
+
 // Search Invoices
 router.get('/search/invoices', InventoryController.searchInvoicesAPI);
 

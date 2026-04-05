@@ -1,7 +1,7 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
-import { GetCommand, PutCommand, QueryCommand, DeleteCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
-import { addTransaction } from '../ledger/ledger.service';
+import { addTransaction, updateDashboardStats } from '../ledger/ledger.service';
 
 /**
  * List all expenses for admin.
@@ -58,11 +58,14 @@ export const createExpense = async (data: { description: string; category: strin
     Item: record
   }));
 
+  // High-Performance Event: Atomic Dashboard increment (Burn)
+  await updateDashboardStats({ burn: Number(data.amount) });
+
   // Automated Financial Propagation: Trigger Ledger Debit
   await addTransaction({
     description: `Operational Outflow: ${data.description} (${data.category})`,
     type: 'Debit',
-    amount: data.amount,
+    amount: Number(data.amount),
     date: expenseDate
   });
 

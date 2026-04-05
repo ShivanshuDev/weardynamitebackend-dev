@@ -11,16 +11,45 @@ import { v4 as uuidv4 } from 'uuid';
 export interface Product {
   product_id: string;
   product_name: string;
+  brand?: string;
   category: string;
-  sub_category: string;
-  color: string;
-  size: string;
-  fabric: string;
-  gsm: string;
+  subCategory?: string;
+  gender?: string;
+  description?: string;
+  mrp?: number;
+  salePrice?: number;
+  purchasePrice?: number;
+  taxPercent?: number;
+  isTaxable?: boolean;
+  discountPercentage?: number;
+  promotionType?: string;
+  discountCoupon?: string;
+  sku?: string;
+  barcode?: string;
+  stock?: number;
+  lowStockAlert?: number;
+  primaryColor?: string;
+  primarySize?: string;
+  fit?: string;
+  neckType?: string;
+  occasion?: string;
+  images?: string[];
+  variants?: any[];
+  keywords?: string[];
+  seoTitle?: string;
+  seoDescription?: string;
+  urlHandle?: string;
+  isReturnable: boolean;
+  returnDays: number;
+  codAvailable: boolean;
+  codCouponApplicable: boolean;
+  
+  // Legacy or Internal mapping
   current_stock: number;
-  reserved_stock: number;
   available_stock: number;
-  status: 'draft' | 'active' | 'inactive' | 'under_review';
+  status: 'Draft' | 'Active' | 'Inactive' | 'Under Review' | 'Sold' | 'Return';
+  inventory_link?: string; // ID of the source inventory item
+  image?: string;
   created_at: number;
   created_by: string;
   updated_at: number;
@@ -35,31 +64,86 @@ export const createProduct = async (
 ) => {
   const productId = data.product_id || uuidv4();
   const now = Date.now();
+  const status = data.status || 'Draft';
+  const category = data.category || 'Uncategorized';
+  const sku = data.sku || `SKU-${productId.substring(0, 8)}`;
+
+  // ✅ Strict Validation: Ensure all mandatory fields are present
+  const requiredFields = [
+    'product_name', 'brand', 'category', 'subCategory', 'gender', 
+    'description', 'mrp', 'salePrice', 'sku', 'barcode'
+  ];
+  
+  for (const field of requiredFields) {
+    const value = (data as any)[field] || (data as any)[field.replace(/_([a-z])/g, (g) => g[1].toUpperCase())];
+    if (!value && value !== 0) {
+      throw new Error(`Missing mandatory field: ${field}`);
+    }
+  }
+
+  // ✅ Image Minimum Requirement
+  if (!data.images || data.images.length < 3) {
+    throw new Error('Institutional requirement: Minimum 3 images required for product catalog.');
+  }
 
   const product: any = {
     PK: `PRODUCT#${productId}`,
     SK: 'METADATA',
 
-    // GSI4 → product listing
+    GSI1PK: `CAT#${category}`,
+    GSI1SK: `STATUS#${status}`,
+    GSI2PK: `SKU#${sku}`,
+    GSI2SK: `ID#${productId}`,
     GSI4PK: 'PRODUCT',
-    GSI4SK: data.product_name || `PRODUCT#${productId}`,
+    GSI4SK: data.product_name || (data as any).name || `PRODUCT#${productId}`,
 
     entity_type: 'PRODUCT',
 
     product_id: productId,
-    product_name: data.product_name,
-    category: data.category,
-    sub_category: data.sub_category,
-    color: data.color,
-    size: data.size,
-    fabric: data.fabric,
-    gsm: data.gsm,
+    product_name: data.product_name || (data as any).name,
+    brand: data.brand || 'Wear Dynamite',
+    category: category,
+    subCategory: data.subCategory || (data as any).sub_category,
+    gender: data.gender,
+    description: data.description,
+    mrp: Number(data.mrp) || 0,
+    salePrice: Number(data.salePrice) || 0,
+    purchasePrice: Number(data.purchasePrice) || 0,
+    taxPercent: Number(data.taxPercent) || 0,
+    isTaxable: !!data.isTaxable,
+    discountPercentage: Number(data.discountPercentage) || 0,
+    promotionType: data.promotionType,
+    discountCoupon: data.discountCoupon,
+    sku: sku,
+    barcode: data.barcode,
+    image: data.image || data.images?.[0],
+    images: data.images || [],
+    
+    stock: Number(data.stock) || Number(data.current_stock) || 0,
+    current_stock: Number(data.current_stock) || Number(data.stock) || 0,
+    available_stock: Number(data.available_stock) || Number(data.stock) || 0,
+    lowStockAlert: Number(data.lowStockAlert) || 10,
+    
+    primaryColor: data.primaryColor || (data as any).color,
+    primarySize: data.primarySize || (data as any).size,
+    fit: data.fit,
+    neckType: data.neckType,
+    occasion: data.occasion,
+    
+    variants: data.variants || [],
+    keywords: data.keywords || [],
+    seoTitle: data.seoTitle,
+    seoDescription: data.seoDescription,
+    urlHandle: data.urlHandle,
+    specs: data.specs || [],
 
-    current_stock: 0,
-    reserved_stock: 0,
-    available_stock: 0,
+    inventory_link: data.inventory_link,
+    status: status,
 
-    status: data.status || 'draft',
+    isReturnable: data.isReturnable ?? true,
+    returnDays: Number(data.returnDays) || 7,
+    codAvailable: data.codAvailable ?? false,
+    codCouponApplicable: data.codCouponApplicable ?? false,
 
     created_at: now,
     created_by: data.user_info || 'system',
@@ -71,7 +155,7 @@ export const createProduct = async (
     new PutCommand({
       TableName: INVENTORY_TABLE,
       Item: product,
-      ConditionExpression: 'attribute_not_exists(PK)' // prevent overwrite
+      ConditionExpression: 'attribute_not_exists(PK)'
     })
   );
 
@@ -99,27 +183,109 @@ export const getProduct = async (productId: string) => {
  * LIST ALL PRODUCTS (USING GSI4)
  */
 export const listProducts = async (filters: any = {}) => {
-  const { page = 1, limit = 10 } = filters;
+  const { page = 1, limit = 10, status, category, subCategory } = filters;
+
+  let filterExpression = '';
+  const expressionAttributeNames: any = {};
+  const expressionAttributeValues: any = { ':pk': 'PRODUCT' };
+
+  if (status) {
+    filterExpression += '#status = :status';
+    expressionAttributeNames['#status'] = 'status';
+    expressionAttributeValues[':status'] = status;
+  }
+
+  if (category) {
+    if (filterExpression) filterExpression += ' AND ';
+    filterExpression += '#category = :category';
+    expressionAttributeNames['#category'] = 'category';
+    expressionAttributeValues[':category'] = category;
+  }
+
+  if (subCategory) {
+    if (filterExpression) filterExpression += ' AND ';
+    filterExpression += '#subCategory = :subCategory';
+    expressionAttributeNames['#subCategory'] = 'subCategory';
+    expressionAttributeValues[':subCategory'] = subCategory;
+  }
 
   const { Items } = await docClient.send(
     new QueryCommand({
       TableName: INVENTORY_TABLE,
       IndexName: 'GSI4',
       KeyConditionExpression: 'GSI4PK = :pk',
-      ExpressionAttributeValues: {
-        ':pk': 'PRODUCT'
-      }
+      FilterExpression: filterExpression || undefined,
+      ExpressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
+      ExpressionAttributeValues: expressionAttributeValues
     })
   );
 
   const products = Items || [];
-
   const start = (page - 1) * limit;
 
   return {
     items: products.slice(start, start + limit),
-    total: products.length
+    total: products.length,
+    page,
+    limit,
+    totalPages: Math.ceil(products.length / limit)
   };
+};
+
+/**
+ * SEARCH PRODUCTS
+ */
+export const searchProducts = async (query: string) => {
+  const { Items } = await docClient.send(
+    new QueryCommand({
+      TableName: INVENTORY_TABLE,
+      IndexName: 'GSI4',
+      KeyConditionExpression: 'GSI4PK = :pk',
+      FilterExpression: 'contains(product_name, :q) OR contains(sku, :q)',
+      ExpressionAttributeValues: {
+        ':pk': 'PRODUCT',
+        ':q': query
+      }
+    })
+  );
+  return Items || [];
+};
+
+/**
+ * GET NEW ARRIVALS
+ */
+export const getNewArrivals = async () => {
+  const { Items } = await docClient.send(
+    new QueryCommand({
+      TableName: INVENTORY_TABLE,
+      IndexName: 'GSI4',
+      KeyConditionExpression: 'GSI4PK = :pk',
+      FilterExpression: '#status = :status',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: { ':pk': 'PRODUCT', ':status': 'Active' },
+      ScanIndexForward: false,
+      Limit: 20
+    })
+  );
+  return Items || [];
+};
+
+/**
+ * GET BEST SELLERS
+ */
+export const getBestSellers = async () => {
+  const { Items } = await docClient.send(
+    new QueryCommand({
+      TableName: INVENTORY_TABLE,
+      IndexName: 'GSI4',
+      KeyConditionExpression: 'GSI4PK = :pk',
+      FilterExpression: '#status = :status',
+      ExpressionAttributeNames: { '#status': 'status' },
+      ExpressionAttributeValues: { ':pk': 'PRODUCT', ':status': 'Active' },
+      Limit: 20
+    })
+  );
+  return Items || [];
 };
 
 /**
@@ -131,22 +297,75 @@ export const updateProduct = async (
 ) => {
   const now = Date.now();
 
+  // Load existing to ensure GSI consistency if parent fields change
+  const existing = await getProduct(productId);
+  if (!existing) return null;
+
+  // ✅ Validation: Prevent removing mandatory fields during update
+  const requiredFields = [
+    'product_name', 'brand', 'category', 'subCategory', 'gender', 
+    'description', 'mrp', 'salePrice', 'sku', 'barcode'
+  ];
+
+  for (const field of requiredFields) {
+    if (updates.hasOwnProperty(field) || updates.hasOwnProperty(field.replace(/_([a-z])/g, (g) => g[1].toUpperCase()))) {
+      const val = (updates as any)[field] ?? (updates as any)[field.replace(/_([a-z])/g, (g) => g[1].toUpperCase())];
+      if (!val && val !== 0) {
+        throw new Error(`Cannot clear mandatory field: ${field}`);
+      }
+    }
+  }
+
+  // ✅ Image Minimum Requirement (if images are being updated)
+  if (updates.images && updates.images.length < 3) {
+    throw new Error('Institutional requirement: Minimum 3 images required even for updates.');
+  }
+
   const allowedFields = [
     'product_name',
+    'brand',
     'category',
-    'sub_category',
-    'color',
-    'size',
-    'fabric',
-    'gsm',
-    'status'
+    'subCategory',
+    'gender',
+    'description',
+    'mrp',
+    'salePrice',
+    'purchasePrice',
+    'taxPercent',
+    'isTaxable',
+    'discountPercentage',
+    'promotionType',
+    'discountCoupon',
+    'sku',
+    'barcode',
+    'status',
+    'stock',
+    'lowStockAlert',
+    'primaryColor',
+    'primarySize',
+    'fit',
+    'neckType',
+    'occasion',
+    'images',
+    'variants',
+    'keywords',
+    'seoTitle',
+    'seoDescription',
+    'urlHandle',
+    'specs',
+    'current_stock',
+    'available_stock',
+    'inventory_link',
+    'image',
+    'isReturnable',
+    'returnDays',
+    'codAvailable',
+    'codCouponApplicable'
   ];
 
   const keys = Object.keys(updates).filter(k =>
     allowedFields.includes(k)
   );
-
-  if (keys.length === 0) return null;
 
   let updateExpression = 'SET ';
   const expressionAttributeNames: any = {};
@@ -157,6 +376,24 @@ export const updateProduct = async (
     expressionAttributeNames[`#f${i}`] = key;
     expressionAttributeValues[`:v${i}`] = (updates as any)[key];
   });
+
+  // Handle GSI Updates if dependent fields change
+  let gsiIdx = keys.length;
+  if (updates.category || updates.status) {
+    const cat = updates.category || existing.category;
+    const stat = updates.status || existing.status;
+    updateExpression += `GSI1PK = :gp1, GSI1SK = :gs1, `;
+    expressionAttributeValues[':gp1'] = `CAT#${cat}`;
+    expressionAttributeValues[':gs1'] = `STATUS#${stat}`;
+  }
+  if (updates.sku) {
+    updateExpression += `GSI2PK = :gp2, `;
+    expressionAttributeValues[':gp2'] = `SKU#${updates.sku}`;
+  }
+  if (updates.product_name) {
+    updateExpression += `GSI4SK = :gs4, `;
+    expressionAttributeValues[':gs4'] = updates.product_name;
+  }
 
   // update audit fields
   updateExpression += 'updated_at = :now, updated_by = :user';
@@ -182,25 +419,49 @@ export const updateProduct = async (
 };
 
 /**
- * DELETE PRODUCT (SOFT DELETE RECOMMENDED)
+ * DELETE PRODUCT (HARD DELETE)
  */
 export const deleteProduct = async (productId: string) => {
   await docClient.send(
-    new UpdateCommand({
+    new DeleteCommand({
       TableName: INVENTORY_TABLE,
       Key: {
         PK: `PRODUCT#${productId}`,
         SK: 'METADATA'
-      },
-      UpdateExpression: 'SET #status = :inactive',
-      ExpressionAttributeNames: {
-        '#status': 'status'
-      },
-      ExpressionAttributeValues: {
-        ':inactive': 'inactive'
       }
     })
   );
 
   return { success: true };
+};
+
+/**
+ * PATCH SINGLE PRODUCT STATUS
+ */
+export const patchProductStatus = async (productId: string, status: Product['status']) => {
+  return await updateProduct(productId, { status });
+};
+
+/**
+ * BULK UPDATE PRODUCT STATUS
+ */
+export const bulkUpdateProductStatus = async (productIds: string[], status: Product['status']) => {
+  // DynamoDB TransactWriteItems or BatchWrite is complex for GSI updates via UpdateCommand.
+  // Given the 50-item cap, parallel UpdateCommands are reliable and maintain transaction-like consistency for GSI fields.
+  const updates = productIds.map(id => patchProductStatus(id, status));
+  const results = await Promise.allSettled(updates);
+
+  const successful = results.filter(r => r.status === 'fulfilled').length;
+  const failed = results.filter(r => r.status === 'rejected').length;
+
+  return {
+    total: productIds.length,
+    successful,
+    failed,
+    results: results.map((r, i) => ({
+      id: productIds[i],
+      status: r.status,
+      error: r.status === 'rejected' ? (r as PromiseRejectedResult).reason.message : undefined
+    }))
+  };
 };

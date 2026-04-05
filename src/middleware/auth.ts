@@ -27,12 +27,21 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     }
     
     // Verify the Firebase ID Token
-    const decodedToken = await firebaseAdmin.auth().verifyIdToken(token);
+    let decodedToken;
+    try {
+      decodedToken = await firebaseAdmin.auth().verifyIdToken(token);
+    } catch (verifyError: any) {
+      if (verifyError.code === 'auth/argument-error' && verifyError.message.includes('kid')) {
+        console.error('[AUTH ERROR] Token missing "kid" claim. This usually means an Access Token or Custom Token was sent instead of an ID Token.');
+      } else {
+        console.error('[AUTH ERROR] Token Verification Failed:', verifyError.message);
+      }
+      throw verifyError;
+    }
     
     // Attach user information derived from Firebase Token
-    // In Firebase, we can use custom claims (e.g., admin: true) to dictate roles
     req.user = {
-      id: decodedToken.uid, // We map DynamoDB USER#<id> to the Firebase UID
+      id: decodedToken.uid,
       firebaseUid: decodedToken.uid,
       email: decodedToken.email || '',
       role: (decodedToken.admin || decodedToken.email === 'skshivanshu1234@gmail.com') ? 'admin' : 'customer'
@@ -40,9 +49,11 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     
     next();
   } catch (error: any) {
+    const isNoKid = error.message.includes('kid');
     res.status(401).json({ 
-      message: 'Unauthorized: Invalid Firebase token', 
-      error: error.message 
+      message: isNoKid ? 'Unauthorized: Token is not a valid Firebase ID Token (Missing kid claim)' : 'Unauthorized: Invalid Firebase token', 
+      error: error.message,
+      hint: isNoKid ? 'Ensure you are passing the result of user.getIdToken() from the frontend, not an access token.' : undefined
     });
   }
 };

@@ -1,6 +1,7 @@
 import { docClient, INVENTORY_TABLE } from '../../utils/awsClient';
 import { TransactWriteCommand, QueryCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
+import { addTransaction } from '../ledger/ledger.service';
 
 // Helper to decode Base64 LEK
 const decodeLEK = (base64Str?: string) => {
@@ -136,6 +137,17 @@ export const addInventoryItem = async (invoiceData: any) => {
   });
 
   await docClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
+
+  // Record to Financial Ledger
+  addTransaction({
+    description: `Inventory Procurement: Invoice #${invoiceNumber} (${vendorName})`,
+    type: 'Debit',
+    category: 'COGS',
+    amount: aggregateAmount,
+    referenceId: `INV-${invoiceNumber}`,
+    date: now
+  });
+
   return { success: true, invoiceNumber, recordsAdded: variantRecordsCount };
 };
 
@@ -228,6 +240,101 @@ export const searchProducts = async (query: string, limit = 20, lastKey?: string
       ':pk': 'PRODUCT_SEARCH',
       ':query': search_query
     },
+    Limit: limit,
+    ExclusiveStartKey: exclusiveStartKey
+  }));
+
+  return {
+    items: Items || [],
+    lastEvaluatedKey: encodeLEK(LastEvaluatedKey)
+  };
+};
+
+export const listAllInventoryItems = async (
+  filters: any = {},
+  limit = 20,
+  lastKey?: string
+) => {
+  const exclusiveStartKey = decodeLEK(lastKey);
+  const { sku, name, status, startDate, endDate } = filters;
+
+  const expressionAttributeValues: any = { 
+    ':pk': 'INVENTORY_ITEMS' 
+  };
+  const expressionAttributeNames: any = {};
+  
+  let keyConditionExpression = 'GSI3PK = :pk';
+  
+  // Efficient date range filtering if provided
+  if (startDate || endDate) {
+    const start = startDate ? `${startDate}#` : '0#';
+    const end = endDate ? `${endDate}#\uFFFF` : '9999999999999#\uFFFF';
+    keyConditionExpression += ' AND GSI3SK BETWEEN :start AND :end';
+    expressionAttributeValues[':start'] = start;
+    expressionAttributeValues[':end'] = end;
+  }
+
+  const filterParts: string[] = [];
+  
+  if (sku) {
+    filterParts.push('contains(inventory_id, :sku)');
+    expressionAttributeValues[':sku'] = sku;
+  }
+  
+  if (name) {
+    filterParts.push('(contains(product_name, :name) OR contains(base_product_name, :name))');
+    expressionAttributeValues[':name'] = name.toLowerCase();
+  }
+  
+  if (status && status !== 'All') {
+    filterParts.push('#status = :status');
+    expressionAttributeNames['#status'] = 'status';
+    expressionAttributeValues[':status'] = status;
+  }
+
+  const { Items, LastEvaluatedKey } = await docClient.send(new QueryCommand({
+    TableName: INVENTORY_TABLE,
+    IndexName: 'GSI3',
+    KeyConditionExpression: keyConditionExpression,
+    FilterExpression: filterParts.length > 0 ? filterParts.join(' AND ') : undefined,
+    ExpressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
+    ExpressionAttributeValues: expressionAttributeValues,
+    Limit: limit,
+    ScanIndexForward: false, // newest first
+    ExclusiveStartKey: exclusiveStartKey
+  }));
+
+  return {
+    items: Items || [],
+    lastEvaluatedKey: encodeLEK(LastEvaluatedKey)
+  };
+};
+
+export const getActiveInventoryItems = async (query?: string, limit = 50, lastKey?: string) => {
+  const exclusiveStartKey = decodeLEK(lastKey);
+  const expressionAttributeValues: any = { 
+    ':pk': 'INVENTORY_ITEMS',
+    ':inactive': 'Inactive',
+    ':zero': 0
+  };
+  
+  let filterExpression = '(attribute_not_exists(#status) OR (#status <> :inactive AND #status <> :inactiveLower)) AND quantity > :zero';
+  const expressionAttributeNames: any = { '#status': 'status' };
+  expressionAttributeValues[':inactiveLower'] = 'inactive';
+
+  if (query) {
+    const search_query = query.toLowerCase().trim();
+    filterExpression += ' AND (contains(product_name, :query) OR contains(base_product_name, :query))';
+    expressionAttributeValues[':query'] = search_query;
+  }
+
+  const { Items, LastEvaluatedKey } = await docClient.send(new QueryCommand({
+    TableName: INVENTORY_TABLE,
+    IndexName: 'GSI3',
+    KeyConditionExpression: 'GSI3PK = :pk',
+    FilterExpression: filterExpression,
+    ExpressionAttributeNames: expressionAttributeNames,
+    ExpressionAttributeValues: expressionAttributeValues,
     Limit: limit,
     ExclusiveStartKey: exclusiveStartKey
   }));

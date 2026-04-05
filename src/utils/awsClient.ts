@@ -28,4 +28,5 @@ const translateConfig = { marshallOptions, unmarshallOptions };
 export const docClient = DynamoDBDocumentClient.from(dbClient, translateConfig);
 
 export const INVENTORY_TABLE = process.env.DYNAMODB_TABLE_NAME;
+export const MAIN_TABLE = INVENTORY_TABLE;
 

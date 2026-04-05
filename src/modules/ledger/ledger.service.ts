@@ -1,5 +1,5 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
-import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 
 // ─── Ledger ───────────────────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ export const listTransactions = async (filters: { type?: string; dateFrom?: stri
   return result;
 };
 
-export const addTransaction = async (data: { description: string; type: 'Credit' | 'Debit'; amount: number; referenceId?: string; date?: number }) => {
+export const addTransaction = async (data: { description: string; type: 'Credit' | 'Debit'; category?: string; amount: number; referenceId?: string; date?: number }) => {
   const id = uuidv4();
   const date = data.date || Date.now();
   
@@ -107,74 +107,138 @@ export const exportLedgerCSV = async () => {
 };
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
+export const updateDashboardStats = async (values: { orders?: number, revenue?: number, burn?: number, products?: number }) => {
+  const updateExpressions: string[] = [];
+  const expressionAttributeValues: any = {};
+  const expressionAttributeNames: any = {};
+
+  if (values.orders) {
+    updateExpressions.push('#o = if_not_exists(#o, :zero) + :o');
+    expressionAttributeNames['#o'] = 'totalOrders';
+    expressionAttributeValues[':o'] = values.orders;
+  }
+  if (values.revenue) {
+    updateExpressions.push('#r = if_not_exists(#r, :zero) + :r');
+    expressionAttributeNames['#r'] = 'totalRevenue';
+    expressionAttributeValues[':r'] = values.revenue;
+  }
+  if (values.burn) {
+    updateExpressions.push('#b = if_not_exists(#b, :zero) + :b');
+    expressionAttributeNames['#b'] = 'totalBurn';
+    expressionAttributeValues[':b'] = values.burn;
+  }
+  if (values.products) {
+    updateExpressions.push('#p = if_not_exists(#p, :zero) + :p');
+    expressionAttributeNames['#p'] = 'totalProducts';
+    expressionAttributeValues[':p'] = values.products;
+  }
+
+  if (updateExpressions.length === 0) return;
+  expressionAttributeValues[':zero'] = 0;
+
+  await docClient.send(new UpdateCommand({
+    TableName: MAIN_TABLE,
+    Key: { PK: 'DASHBOARD#STATS', SK: 'LATEST' },
+    UpdateExpression: `SET ${updateExpressions.join(', ')}`,
+    ExpressionAttributeNames: expressionAttributeNames,
+    ExpressionAttributeValues: expressionAttributeValues
+  }));
+};
+
 export const getDashboardStats = async () => {
-  // In a true massive scale system, this would read from a pre-aggregated DASHBOARD#STATS record.
-  // We use GSI queries to calculate dynamically for now.
-  const [{ Items: orders }, { Items: products }, { Items: employees }] = await Promise.all([
+  // 1. Attempt to read from the Pre-Aggregated Snapshot record (Highly Efficient)
+  const { Item: snapshot } = await docClient.send(new GetCommand({
+    TableName: MAIN_TABLE,
+    Key: { PK: 'DASHBOARD#STATS', SK: 'LATEST' }
+  }));
+
+  if (snapshot) {
+    return {
+      grossRevenue: snapshot.totalRevenue || 0,
+      activeOrders: snapshot.totalOrders || 0,
+      totalBurn: snapshot.totalBurn || 0,
+      currentStock: snapshot.totalProducts || 0,
+      isRealtime: true
+    };
+  }
+
+  // 2. Fallback to GSI queries if snapshot doesn't exist yet (Initialization phase)
+  const [{ Items: orders }, { Items: products }] = await Promise.all([
     docClient.send(new QueryCommand({ TableName: MAIN_TABLE, IndexName: 'GSI1', KeyConditionExpression: 'GSI1PK = :pk', ExpressionAttributeValues: { ':pk': 'ORDER' } })),
-    docClient.send(new ScanCommand({ TableName: MAIN_TABLE, FilterExpression: 'SK = :v', ExpressionAttributeValues: { ':v': 'PRODUCT' } })),
-    docClient.send(new ScanCommand({ TableName: MAIN_TABLE, FilterExpression: 'SK = :v', ExpressionAttributeValues: { ':v': 'EMPLOYEE' } }))
+    docClient.send(new QueryCommand({ TableName: MAIN_TABLE, IndexName: 'GSI4', KeyConditionExpression: 'GSI4PK = :pk', ExpressionAttributeValues: { ':pk': 'PRODUCT' } })),
   ]);
 
   const ords = orders || [];
   const prods = products || [];
-  const emps = employees || [];
-
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todaysOrders = ords.filter((o: any) => {
-    const orderDate = o.createdAt || 0;
-    const orderDateStr = typeof orderDate === 'number' ? new Date(orderDate).toISOString().split('T')[0] : orderDate;
-    return orderDateStr === todayStr;
-  });
-  const todaysRevenue = todaysOrders.reduce((s: number, o: any) => s + Number(o.totalAmount || 0), 0);
 
   return {
-    todaysRevenue,
-    totalOrders: ords.length,
-    pendingOrders: ords.filter((o: any) => o.status === 'Pending').length,
-    processingOrders: ords.filter((o: any) => o.status === 'Processing').length,
-    shippedOrders: ords.filter((o: any) => o.status === 'Shipped').length,
-    deliveredOrders: ords.filter((o: any) => o.status === 'Delivered').length,
-    totalProducts: prods.length,
-    activeProducts: prods.filter((p: any) => p.status === 'Active').length,
-    totalEmployees: emps.length,
+    grossRevenue: ords.reduce((s, o: any) => s + Number(o.totalAmount || 0), 0),
+    activeOrders: ords.length,
+    totalBurn: 0, // Ledger analysis needed for historical burn
+    currentStock: prods.reduce((s, p: any) => s + Number(p.stock || p.current_stock || 0), 0),
+    isRealtime: false
   };
 };
 
 export const getRevenueChart = async (period: string) => {
-  const { Items: orders } = await docClient.send(new QueryCommand({
+  const { Items: ledgerEntries } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
     KeyConditionExpression: 'GSI1PK = :pk',
-    ExpressionAttributeValues: { ':pk': 'ORDER' }
+    ExpressionAttributeValues: { ':pk': 'LEDGER' }
   }));
   
-  const ords = orders || [];
-  const days = period === '7d' ? 7 : period === '90d' ? 90 : 30;
-  const result: Record<string, number> = {};
+  const entries = ledgerEntries || [];
+  const days = period === '7d' ? 7 : (period === '14d' || period === '2 Weeks') ? 14 : period === '90d' ? 90 : 30;
+  
+  const revenueHistory: Record<string, number> = {};
+  const expenseHistory: Record<string, number> = {};
   
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     const key = d.toISOString().split('T')[0];
-    result[key] = 0;
+    revenueHistory[key] = 0;
+    expenseHistory[key] = 0;
   }
   
-  ords.forEach((o: any) => {
-    const orderDate = o.createdAt || 0;
-    const day = typeof orderDate === 'number' ? new Date(orderDate).toISOString().split('T')[0] : orderDate?.split('T')[0];
-    if (day && result[day] !== undefined) result[day] += Number(o.totalAmount || 0);
+  entries.forEach((e: any) => {
+    const day = new Date(e.date || e.createdAt).toISOString().split('T')[0];
+    if (day && revenueHistory[day] !== undefined) {
+      if (e.type === 'Credit') revenueHistory[day] += Number(e.amount || 0);
+      else if (e.type === 'Debit') expenseHistory[day] += Number(e.amount || 0);
+    }
   });
   
-  return Object.entries(result).map(([date, revenue]) => ({ date, revenue }));
+  return Object.keys(revenueHistory).map(date => ({
+    date,
+    revenue: revenueHistory[date],
+    expense: expenseHistory[date]
+  }));
 };
 
 export const getTopProducts = async () => {
-    // Scan fallback for top products (Optimized for rare dashboard loads)
-    const { Items: products } = await docClient.send(new ScanCommand({ 
-      TableName: MAIN_TABLE, 
-      FilterExpression: 'SK = :v', 
-      ExpressionAttributeValues: { ':v': 'PRODUCT' } 
-    }));
-    return (products || []).sort((a, b) => Number(b.salesCount || 0) - Number(a.salesCount || 0)).slice(0, 5);
+  const { Items: orders } = await docClient.send(new QueryCommand({
+    TableName: MAIN_TABLE,
+    IndexName: 'GSI1',
+    KeyConditionExpression: 'GSI1PK = :pk',
+    ExpressionAttributeValues: { ':pk': 'ORDER' },
+    Limit: 100 // Last 100 orders for performance
+  }));
+
+  const productSales: Record<string, { name: string, quantity: number }> = {};
+
+  (orders || []).forEach((order: any) => {
+    const items = order.items || [];
+    items.forEach((item: any) => {
+      const name = item.product_name || item.name || 'Unknown';
+      if (!productSales[name]) productSales[name] = { name, quantity: 0 };
+      productSales[name].quantity += Number(item.quantity || 1);
+    });
+  });
+
+  return Object.values(productSales)
+    .sort((a, b) => b.quantity - a.quantity)
+    .slice(0, 5);
 };
+

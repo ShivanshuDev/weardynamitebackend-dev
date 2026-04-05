@@ -44,3 +44,36 @@ export const deleteInquiry = async (id: string) => {
   await docClient.send(new DeleteCommand({ TableName: MAIN_TABLE, Key: { PK: `INQUIRY#${id}`, SK: 'INQUIRY' } }));
   return { message: 'Inquiry deleted' };
 };
+
+// Subscribers
+export const listSubscribers = async () => {
+  const { Items } = await docClient.send(new QueryCommand({
+    TableName: MAIN_TABLE,
+    IndexName: 'GSI1',
+    KeyConditionExpression: 'GSI1PK = :pk',
+    ExpressionAttributeValues: { ':pk': 'SUBSCRIBER' }
+  }));
+  return Items || [];
+};
+
+export const subscribe = async (email: string) => {
+  const record = {
+    PK: `SUBSCRIBER#${email}`,
+    SK: 'METADATA',
+    GSI1PK: 'SUBSCRIBER',
+    GSI1SK: `DATE#${Date.now()}`,
+    email,
+    status: 'Subscribed',
+    createdAt: Date.now()
+  };
+  await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: record }));
+  return record;
+};
+
+export const unsubscribe = async (email: string) => {
+  await docClient.send(new DeleteCommand({
+    TableName: MAIN_TABLE,
+    Key: { PK: `SUBSCRIBER#${email}`, SK: 'METADATA' }
+  }));
+  return { message: 'Unsubscribed' };
+};

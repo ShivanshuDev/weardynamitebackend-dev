@@ -112,6 +112,21 @@ export const searchInvoicesAPI = async (req: Request, res: Response) => {
   }
 };
 
+export const getActiveItemsAPI = async (req: Request, res: Response) => {
+  try {
+    const { q, limit, lastKey } = req.query;
+    const result = await InventoryService.getActiveInventoryItems(
+      q as string | undefined,
+      Number(limit) || 50,
+      lastKey as string | undefined
+    );
+    res.json(result);
+  } catch (e: any) {
+    console.error('Get Active Items Error:', e.message);
+    res.status(400).json({ message: e.message });
+  }
+};
+
 export const getLineItem = async (req: Request, res: Response) => {
   try {
     const { invoiceNumber, itemId } = req.params;
@@ -125,16 +140,13 @@ export const getLineItem = async (req: Request, res: Response) => {
 
 export const listAllItems = async (req: Request, res: Response) => {
   try {
-    const { limit, lastKey, status, sku, name, condition, location, startDate, endDate } = req.query;
-    const filters = { status, sku, name, condition, location, startDate, endDate };
+    const { limit, lastKey, status, sku, name, startDate, endDate } = req.query;
+    const filters = { status, sku, name, startDate, endDate };
     
-    // Clean undefined filters
-    Object.keys(filters).forEach(key => (filters as any)[key] === undefined && delete (filters as any)[key]);
-
-    const result = await InventoryService.getAllInventoryItems(
-      Number(limit) || 100, 
-      lastKey as string | undefined,
-      Object.keys(filters).length > 0 ? filters : undefined
+    const result = await InventoryService.listAllInventoryItems(
+      filters,
+      Number(limit) || 20, 
+      lastKey as string | undefined
     );
     res.json(result);
   } catch (e: any) {

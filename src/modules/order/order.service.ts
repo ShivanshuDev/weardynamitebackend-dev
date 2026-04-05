@@ -1,7 +1,7 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
-import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand, TransactWriteCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
-import { addTransaction } from '../ledger/ledger.service';
+import { addTransaction, updateDashboardStats } from '../ledger/ledger.service';
 
 // ─── Cart ────────────────────────────────────────────────────────────────────
 
@@ -20,7 +20,7 @@ export const addToCart = async (userId: string, item: { productId: string; color
     PK: `USER#${userId}`,
     SK: `CART#${itemKey}`,
     ...item,
-    ownerId: userId,
+    owner_id: userId,
   };
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: cartItem }));
   return cartItem;
@@ -47,7 +47,6 @@ export const removeCartItem = async (userId: string, itemId: string) => {
 
 export const clearCart = async (userId: string) => {
   const items = await getCart(userId);
-  // Batch delete items in memory
   for (const i of items) {
     await docClient.send(new DeleteCommand({ TableName: MAIN_TABLE, Key: { PK: i.PK, SK: i.SK } }));
   }
@@ -75,15 +74,19 @@ export const toggleFavorite = async (userId: string, productId: string) => {
     await docClient.send(new DeleteCommand({ TableName: MAIN_TABLE, Key: { PK: `USER#${userId}`, SK: `FAVORITE#${productId}` }}));
     return { favorited: false };
   } else {
-    await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: { PK: `USER#${userId}`, SK: `FAVORITE#${productId}`, productId, ownerId: userId } }));
+    await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: { PK: `USER#${userId}`, SK: `FAVORITE#${productId}`, product_id: productId, owner_id: userId } }));
     return { favorited: true };
   }
 };
 
-// ─── Orders ──────────────────────────────────────────────────────────────────
+// ─── Orders (Summary + Items Pattern) ────────────────────────────────────────
 
-export const placeOrder = async (userId: string, orderData: { addressId: string; paymentMethod: string; items: any[]; couponCode?: string }) => {
-  const { addressId, paymentMethod, items, couponCode } = orderData;
+/**
+ * Places an order using the highly efficient Summary + Items pattern.
+ * Uses TransactWrite to ensure stock reservation and order creation are atomic.
+ */
+export const placeOrder = async (userId: string, data: { address_id: string; payment_method: string; items: any[]; coupon_code?: string; customer_details: any; shipping_address: any }) => {
+  const { items, address_id: addressId, payment_method: paymentMethod, coupon_code: couponCode, customer_details, shipping_address } = data;
   if (!items?.length) throw new Error('No items in order');
 
   const orderId = uuidv4();
@@ -94,139 +97,216 @@ export const placeOrder = async (userId: string, orderData: { addressId: string;
   let discountTotal = 0;
   let taxTotal = 0;
 
-  // 1. Group items
-  const groupedItems = items.reduce((acc: any, item: any) => {
-    if (!acc[item.productId]) acc[item.productId] = [];
-    acc[item.productId].push(item);
-    return acc;
-  }, {});
-
-  const itemsWithPrice: any[] = [];
   const transactItems: any[] = [];
+  const processedItems: any[] = [];
 
-  for (const productId of Object.keys(groupedItems)) {
-    // UPDATED: Products now use SK: 'METADATA'
+    // 1. Process Items & Reserve Stock
+  for (const item of items) {
     const { Item: product } = await docClient.send(new GetCommand({ 
       TableName: MAIN_TABLE, 
-      Key: { PK: `PRODUCT#${productId}`, SK: 'METADATA' } 
+      Key: { PK: `PRODUCT#${item.productId}`, SK: 'METADATA' } 
     }));
     
-    if (!product) throw new Error(`Product ${productId} not found`);
+    if (!product) throw new Error(`Product ${item.productId} not found`);
 
-    const productItems = groupedItems[productId];
-    const basePrice = Number(product.price || product.salePrice || 0);
-    const totalQty = productItems.reduce((s: number, i: any) => s + i.quantity, 0);
+    // --- VARIANT SPECIFIC STOCK CHECK ---
+    const variant = product.variants?.find((v: any) => v.color === item.color);
+    if (!variant) throw new Error(`Color ${item.color} not found for ${product.product_name || 'Product'}`);
 
-    // Check availability
-    if ((product.availableForSale || 0) < totalQty) {
-      throw new Error(`Insufficient stock for ${product.name}. Available: ${product.availableForSale}`);
+    const sizeEntry = variant.sizes?.find((s: any) => s.size === item.size);
+    if (!sizeEntry) throw new Error(`Size ${item.size} not found for ${item.color} ${product.product_name || 'Product'}`);
+
+    const variantStock = Number(sizeEntry.stock || 0);
+    if (variantStock < item.quantity) {
+      throw new Error(`Insufficient stock for ${product.product_name} (${item.color}/${item.size}). Available: ${variantStock}`);
     }
 
-    subtotal += basePrice * totalQty;
-    
-    productItems.forEach((item: any) => {
-      itemsWithPrice.push({ ...item, price: basePrice });
+    const basePrice = Number(product.salePrice || product.price || 0);
+    const lineTotal = basePrice * item.quantity;
+    subtotal += lineTotal;
+
+    const itemRecordId = uuidv4();
+    const itemRecord = {
+      PK: `ORDER#${orderId}`,
+      SK: `ITEM#${itemRecordId}`,
+      order_id: orderId,
+      product_id: item.productId,
+      product_name: product.product_name || item.name,
+      price: basePrice,
+      quantity: item.quantity,
+      total_price: lineTotal,
+      color: item.color,
+      size: item.size,
+      for_whom: item.forWhom,
+      image: Array.isArray(product.images) ? product.images[0] : (product.image || ''),
+      created_at: now
+    };
+
+    processedItems.push(itemRecord);
+
+    // Order Item record
+    transactItems.push({
+      Put: {
+        TableName: MAIN_TABLE,
+        Item: itemRecord
+      }
     });
 
-    // Atomic Reservation: Decrement only Available Stock
+    // --- ATOMIC UPDATES: Update specific variant stock AND global stock ---
+    // Calculate new variants array locally to find correct indices for DynamoDB Update
+    const variantIndex = product.variants.findIndex((v: any) => v.color === item.color);
+    const sizeIndex = variant.sizes.findIndex((s: any) => s.size === item.size);
+
     transactItems.push({
       Update: {
         TableName: MAIN_TABLE,
-        Key: { PK: `PRODUCT#${productId}`, SK: 'METADATA' },
-        UpdateExpression: 'SET availableForSale = availableForSale - :qty, updatedAt = :now',
+        Key: { PK: `PRODUCT#${item.productId}`, SK: 'METADATA' },
+        // Use list_append and specific path to decrement only that size's stock
+        UpdateExpression: `SET variants[${variantIndex}].sizes[${sizeIndex}].stock = variants[${variantIndex}].sizes[${sizeIndex}].stock - :qty, 
+                           available_stock = available_stock - :qty, 
+                           updatedAt = :now`,
         ExpressionAttributeValues: { 
-          ':qty': totalQty, 
+          ':qty': item.quantity, 
           ':now': now 
         },
-        ConditionExpression: 'availableForSale >= :qty'
+        ConditionExpression: `variants[${variantIndex}].sizes[${sizeIndex}].stock >= :qty`
       }
     });
   }
 
-  // Final totals
-  if (couponCode) discountTotal += (subtotal - discountTotal) * 0.15;
+  // 2. Calculate Totals
+  if (couponCode) discountTotal += (subtotal - discountTotal) * 0.15; // Placeholder coupon logic
   
+  // First-time user discount check
   const { Items: userOrders } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
-    KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
-    ExpressionAttributeValues: { ':pk': `USER#${userId}`, ':sk': 'ORDER#' }
+    IndexName: 'GSI1',
+    KeyConditionExpression: 'GSI1PK = :pk',
+    ExpressionAttributeValues: { ':pk': `USER#${userId}` },
+    Limit: 1
   }));
   
-  if (!userOrders || userOrders.length === 0) discountTotal += (subtotal - discountTotal) * 0.10;
+  if (!userOrders || userOrders.length === 0) {
+    discountTotal += (subtotal - discountTotal) * 0.10;
+  }
 
   const shipping = subtotal > 5000 ? 0 : 150;
+  taxTotal = Math.round((subtotal - discountTotal) * 0.18 * 100) / 100; // 18% GST
   const totalAmount = Math.round((subtotal - discountTotal + shipping + taxTotal) * 100) / 100;
 
-  // Add Order creation to transaction
+  // 3. Create Order Summary
+  const orderSummary = {
+    PK: `ORDER#${orderId}`,
+    SK: `SUMMARY`,
+    order_id: orderId,
+    order_number: orderNumber,
+    user_id: userId,
+    address_id: addressId,
+    payment_method: paymentMethod,
+    status: 'Pending',
+    payment_status: paymentMethod === 'COD' ? 'Pending' : 'Awaiting Payment',
+    subtotal,
+    discount_total: discountTotal,
+    tax_total: taxTotal,
+    shipping_total: shipping,
+    total_amount: totalAmount,
+    coupon_code: couponCode,
+    item_count: items.length,
+    created_at: now,
+    updated_at: now,
+    
+    // Snapshots: We use these names to match existing Admin Panel expectations
+    customer: customer_details,
+    address: shipping_address,
+    customer_name: customer_details?.name || 'Guest',
+    customer_email: customer_details?.email,
+    customer_phone: customer_details?.phone,
+
+    // GSIs for ultra-efficient querying
+    GSI1PK: `USER#${userId}`,
+    GSI1SK: `${now}#${orderId}`,
+    GSI2PK: `STATUS#Pending`,
+    GSI2SK: `${now}#${orderId}`,
+    GSI3PK: `ALL_ORDERS`,
+    GSI3SK: `${now}#${orderId}`,
+    thumbnail: processedItems[0]?.image || '',
+    item_names: processedItems.map(i => i.product_name).join(', ')
+  };
+
   transactItems.push({
     Put: {
       TableName: MAIN_TABLE,
-      Item: {
-        PK: `USER#${userId}`,
-        SK: `ORDER#${now}#${orderId}`, // Allows chronological sorting automatically
-        GSI1PK: 'ORDER',
-        GSI1SK: `DATE#${now}`,
-        GSI2PK: 'STATUS#Pending',
-        GSI2SK: `DATE#${now}`,
-        orderId,
-        orderNumber,
-        userId,
-        addressId,
-        paymentMethod,
-        status: 'Pending',
-        items: itemsWithPrice,
-        totalAmount,
-        couponCode,
-        createdAt: now
-      }
+      Item: orderSummary
     }
   });
 
-  // Execute native AWS DynamoDB Transaction
+  // 4. Finalize Transaction
   await docClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
+  
+  // High-Performance Event: Atomic Dashboard increment
+  await updateDashboardStats({ orders: 1, revenue: totalAmount });
 
   // Auto-record to Ledger asynchronously 
   addTransaction({
-    description: `Order Revenue (New): ${orderNumber}`,
+    description: `Order Revenue: #${orderNumber} (${customer_details?.name || 'Guest'})`,
     type: 'Credit',
+    category: 'Revenue',
     amount: totalAmount,
-    referenceId: orderId,
+    referenceId: `ORD-${orderId}`,
     date: now
   });
 
-  return { orderId, orderNumber, totalAmount, status: 'Pending' };
+  return { order_id: orderId, order_number: orderNumber, total_amount: totalAmount, status: 'Pending' };
 };
 
+/**
+ * Efficiently fetches all orders for a specific user using GSI1.
+ */
 export const getUserOrders = async (userId: string) => {
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
-    KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
-    ExpressionAttributeValues: { ':pk': `USER#${userId}`, ':sk': 'ORDER#' },
+    IndexName: 'GSI1',
+    KeyConditionExpression: 'GSI1PK = :pk',
+    ExpressionAttributeValues: { ':pk': `USER#${userId}` },
     ScanIndexForward: false // Newest first
   }));
   return Items || [];
 };
 
-export const getUserOrder = async (userId: string, orderId: string) => {
-  // Extract timestamp from items array because we don't know the exact SK directly
-  // Better approach: query begins_with ORDER# and filter by orderId
+/**
+ * Fetches a single order's summary and its items.
+ */
+export const getOrderDetail = async (orderId: string) => {
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
-    KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
-    ExpressionAttributeValues: { ':pk': `USER#${userId}`, ':sk': 'ORDER#' }
+    KeyConditionExpression: 'PK = :pk',
+    ExpressionAttributeValues: { ':pk': `ORDER#${orderId}` }
   }));
-  const item = (Items || []).find(i => i.orderId === orderId);
-  if (!item) throw new Error('Order not found');
-  return item;
+
+  if (!Items || Items.length === 0) throw new Error('Order not found');
+
+  const summary = Items.find(i => i.SK === 'SUMMARY');
+  const items = Items.filter(i => i.SK.startsWith('ITEM#'));
+
+  return { ...summary, items };
+};
+
+/**
+ * Backward compatibility or internal detail fetch.
+ */
+export const getUserOrder = async (userId: string, orderId: string) => {
+  return getOrderDetail(orderId);
 };
 
 // ─── Admin Orders ─────────────────────────────────────────────────────────────
 
-export const adminListOrders = async (filters: { status?: string; date?: string; customerId?: string; search?: string }) => {
+/**
+ * Lists orders globally or by status using GSIs.
+ */
+export const adminListOrders = async (filters: { status?: string; search?: string }) => {
   let orders: any[] = [];
   
   if (filters.status) {
-    // Zero-scan lookup using GSI2 for status queues
     const { Items } = await docClient.send(new QueryCommand({
       TableName: MAIN_TABLE,
       IndexName: 'GSI2',
@@ -236,12 +316,11 @@ export const adminListOrders = async (filters: { status?: string; date?: string;
     }));
     orders = Items || [];
   } else {
-    // List all orders via GSI1
     const { Items } = await docClient.send(new QueryCommand({
       TableName: MAIN_TABLE,
-      IndexName: 'GSI1',
-      KeyConditionExpression: 'GSI1PK = :pk',
-      ExpressionAttributeValues: { ':pk': 'ORDER' },
+      IndexName: 'GSI3',
+      KeyConditionExpression: 'GSI3PK = :pk',
+      ExpressionAttributeValues: { ':pk': 'ALL_ORDERS' },
       ScanIndexForward: false
     }));
     orders = Items || [];
@@ -250,55 +329,47 @@ export const adminListOrders = async (filters: { status?: string; date?: string;
   return orders;
 };
 
-export const getOrderDetail = async (orderId: string) => {
-  // Using GSI1 to quickly find the exact order without scanning the whole table
-  const { Items } = await docClient.send(new QueryCommand({
-    TableName: MAIN_TABLE,
-    IndexName: 'GSI1',
-    KeyConditionExpression: 'GSI1PK = :pk',
-    FilterExpression: 'orderId = :oid',
-    ExpressionAttributeValues: { ':pk': 'ORDER', ':oid': orderId }
-  }));
-  if (!Items || Items.length === 0) throw new Error('Order not found');
-  
-  const order = Items[0];
-  
-  return { ...order };
-};
-
+/**
+ * Updates order status and handles inventory/financial impacts.
+ */
 export const updateOrderStatus = async (orderId: string, status: string) => {
-  const order = await getOrderDetail(orderId);
+  const order: any = await getOrderDetail(orderId);
+  const now = Date.now();
   
   await docClient.send(new UpdateCommand({
     TableName: MAIN_TABLE,
-    Key: { PK: order.PK, SK: order.SK },
-    UpdateExpression: 'SET #st = :status, GSI2PK = :gsi',
+    Key: { PK: `ORDER#${orderId}`, SK: 'SUMMARY' },
+    UpdateExpression: 'SET #st = :status, GSI2PK = :gsi, updated_at = :now',
     ExpressionAttributeNames: { '#st': 'status' },
-    ExpressionAttributeValues: { ':status': status, ':gsi': `STATUS#${status}` }
+    ExpressionAttributeValues: { 
+      ':status': status, 
+      ':gsi': `STATUS#${status}`,
+      ':now': now
+    }
   }));
 
+  // Handle Inventory: Convert Reservation to Fulfillment
   if (status === 'Shipped' || status === 'Delivered') {
-    // Physical Stock Reduction logic
     const orderItems = order.items || [];
     for (const item of orderItems) {
       await docClient.send(new UpdateCommand({
         TableName: MAIN_TABLE,
-        Key: { PK: `PRODUCT#${item.productId}`, SK: 'METADATA' },
+        Key: { PK: `PRODUCT#${item.product_id}`, SK: 'METADATA' },
         UpdateExpression: 'SET totalPhysicalStock = totalPhysicalStock - :qty, updatedAt = :now',
         ExpressionAttributeValues: { 
           ':qty': item.quantity, 
-          ':now': Date.now() 
+          ':now': now 
         }
       }));
     }
 
     if (status === 'Delivered') {
       addTransaction({
-        description: `Order Revenue: ${order.orderNumber || orderId}`,
+        description: `Order Revenue: ${order.order_number || orderId}`,
         type: 'Credit',
-        amount: order.totalAmount || 0,
+        amount: order.total_amount || 0,
         referenceId: orderId,
-        date: Date.now()
+        date: now
       });
     }
   }
@@ -306,14 +377,23 @@ export const updateOrderStatus = async (orderId: string, status: string) => {
   return { message: 'Order Status Updated', status };
 };
 
+/**
+ * Attaches tracking info and moves order to Shipped status.
+ */
 export const updateOrderTracking = async (orderId: string, trackingNumber: string, courier: string) => {
-  const order = await getOrderDetail(orderId);
+  const now = Date.now();
   await docClient.send(new UpdateCommand({
     TableName: MAIN_TABLE,
-    Key: { PK: order.PK, SK: order.SK },
-    UpdateExpression: 'SET trackingNumber = :tn, courier = :cr, #st = :status, GSI2PK = :gsi',
+    Key: { PK: `ORDER#${orderId}`, SK: 'SUMMARY' },
+    UpdateExpression: 'SET tracking_number = :tn, courier = :cr, #st = :status, GSI2PK = :gsi, updated_at = :now',
     ExpressionAttributeNames: { '#st': 'status' },
-    ExpressionAttributeValues: { ':tn': trackingNumber, ':cr': courier, ':status': 'Shipped', ':gsi': 'STATUS#Shipped' }
+    ExpressionAttributeValues: { 
+      ':tn': trackingNumber, 
+      ':cr': courier, 
+      ':status': 'Shipped', 
+      ':gsi': 'STATUS#Shipped',
+      ':now': now
+    }
   }));
   return { message: 'Order Tracking Updated' };
 };

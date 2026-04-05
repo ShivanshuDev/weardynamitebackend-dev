@@ -19,6 +19,7 @@ router.post('/admin/products', authenticate as any, adminOnly as any, ProductCon
 router.get('/admin/products', authenticate as any, adminOnly as any, ProductController.listProducts);
 router.get('/admin/products/:id', authenticate as any, adminOnly as any, ProductController.getProduct);
 router.put('/admin/products/:id', authenticate as any, adminOnly as any, ProductController.updateProduct);
+router.patch('/admin/products/bulk-status', authenticate as any, adminOnly as any, ProductController.bulkUpdateProductStatus);
 router.patch('/admin/products/:id/status', authenticate as any, adminOnly as any, ProductController.patchProductStatus);
 router.delete('/admin/products/:id', authenticate as any, adminOnly as any, ProductController.deleteProduct);
 router.get('/admin/inventory/report', authenticate as any, adminOnly as any, ProductController.getInventoryReport);

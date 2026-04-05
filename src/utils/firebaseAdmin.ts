@@ -2,14 +2,19 @@ import admin from 'firebase-admin';
 
 if (!admin.apps.length) {
   try {
-    const rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
-    // Only attempt initialization if the key looks remotely valid to prevent hard Node.js crashes
-    if (rawKey.includes('-----BEGIN PRIVATE KEY-----') && rawKey.length > 100) {
+    let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
+    
+    // Cleanup: Remove potential outer quotes and handle literal/escaped newlines
+    rawKey = rawKey.trim();
+    if (rawKey.startsWith('"') && rawKey.endsWith('"')) {
+      rawKey = rawKey.substring(1, rawKey.length - 1);
+    }
+    
+    if (rawKey.includes('-----BEGIN PRIVATE KEY-----')) {
       admin.initializeApp({
         credential: admin.credential.cert({
           projectId: process.env.FIREBASE_PROJECT_ID,
           clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          // Replace literal \n with actual newlines if coming from .env
           privateKey: rawKey.replace(/\\n/g, '\n'),
         }),
       });
