@@ -51,6 +51,8 @@ export interface Product {
   status: 'Draft' | 'Active' | 'Inactive' | 'Under Review' | 'Sold' | 'Return';
   inventory_link?: string; // ID of the source inventory item
   image?: string;
+  isFreshArrival?: boolean;
+  isMostPopular?: boolean;
   created_at: number;
   created_by: string;
   updated_at: number;
@@ -145,6 +147,9 @@ export const createProduct = async (
     returnDays: Number(data.returnDays) || 7,
     codAvailable: data.codAvailable ?? false,
     codCouponApplicable: data.codCouponApplicable ?? false,
+
+    isFreshArrival: !!data.isFreshArrival,
+    isMostPopular: !!data.isMostPopular,
 
     created_at: now,
     created_by: data.user_info || 'system',
@@ -270,15 +275,15 @@ export const searchProducts = async (query: string) => {
  * GET NEW ARRIVALS
  */
 export const getNewArrivals = async () => {
+  // Fetch products explicitly flagged as Fresh Arrival
   const { Items } = await docClient.send(
     new QueryCommand({
       TableName: INVENTORY_TABLE,
       IndexName: 'GSI4',
       KeyConditionExpression: 'GSI4PK = :pk',
-      FilterExpression: '#status = :status',
-      ExpressionAttributeNames: { '#status': 'status' },
-      ExpressionAttributeValues: { ':pk': 'PRODUCT', ':status': 'Active' },
-      ScanIndexForward: false,
+      FilterExpression: '#status = :status AND #fresh = :fresh',
+      ExpressionAttributeNames: { '#status': 'status', '#fresh': 'isFreshArrival' },
+      ExpressionAttributeValues: { ':pk': 'PRODUCT', ':status': 'Active', ':fresh': true },
       Limit: 20
     })
   );
@@ -289,14 +294,15 @@ export const getNewArrivals = async () => {
  * GET BEST SELLERS
  */
 export const getBestSellers = async () => {
+  // Fetch products explicitly flagged as Most Popular
   const { Items } = await docClient.send(
     new QueryCommand({
       TableName: INVENTORY_TABLE,
       IndexName: 'GSI4',
       KeyConditionExpression: 'GSI4PK = :pk',
-      FilterExpression: '#status = :status',
-      ExpressionAttributeNames: { '#status': 'status' },
-      ExpressionAttributeValues: { ':pk': 'PRODUCT', ':status': 'Active' },
+      FilterExpression: '#status = :status AND #popular = :popular',
+      ExpressionAttributeNames: { '#status': 'status', '#popular': 'isMostPopular' },
+      ExpressionAttributeValues: { ':pk': 'PRODUCT', ':status': 'Active', ':popular': true },
       Limit: 20
     })
   );
@@ -375,7 +381,9 @@ export const updateProduct = async (
     'isReturnable',
     'returnDays',
     'codAvailable',
-    'codCouponApplicable'
+    'codCouponApplicable',
+    'isFreshArrival',
+    'isMostPopular'
   ];
 
   const keys = Object.keys(updates).filter(k =>

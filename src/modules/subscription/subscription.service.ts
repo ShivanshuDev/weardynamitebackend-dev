@@ -1,10 +1,12 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
-import { QueryCommand, GetCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { QueryCommand, UpdateCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { MailService } from '../../utils/mailService';
 
 export const subscribe = async (data: { email: string; name?: string; phone?: string }) => {
   const { email, name, phone } = data;
   const now = Date.now();
   const dateStr = new Date().toISOString().split('T')[0];
+  const finalName = name || email.split('@')[0];
 
   const mainRecord = {
     PK: `SUBSCRIPTION#${email}`,
@@ -12,9 +14,10 @@ export const subscribe = async (data: { email: string; name?: string; phone?: st
     GSI1PK: 'SUBSCRIPTION',
     GSI1SK: `DATE#${now}`,
     email,
-    name: name || email.split('@')[0], 
+    name: finalName, 
     phone: phone || 'N/A',
     status: 'Active',
+    emailStatus: 'Pending',
     subscribedDate: dateStr,
     lastActive: dateStr,
     createdAt: now,
@@ -32,7 +35,6 @@ export const subscribe = async (data: { email: string; name?: string; phone?: st
     }
   ];
 
-  // If phone is provided, add the constraint record to the transaction
   if (phone && phone !== 'N/A' && phone.trim() !== '') {
     transactItems.push({
       Put: {
@@ -40,7 +42,7 @@ export const subscribe = async (data: { email: string; name?: string; phone?: st
         Item: {
           PK: `SUBSCRIPTION_PHONE#${phone}`,
           SK: 'METADATA',
-          email: email // Reference back
+          email: email
         },
         ConditionExpression: 'attribute_not_exists(PK)'
       }
@@ -50,6 +52,25 @@ export const subscribe = async (data: { email: string; name?: string; phone?: st
   await docClient.send(new TransactWriteCommand({
     TransactItems: transactItems
   }));
+
+  // Asynchronous Email Dispatch
+  (async () => {
+    try {
+      const result = await MailService.sendSubscriptionConfirmation(email, finalName);
+      
+      await docClient.send(new UpdateCommand({
+        TableName: MAIN_TABLE,
+        Key: { PK: `SUBSCRIPTION#${email}`, SK: 'METADATA' },
+        UpdateExpression: 'SET emailStatus = :status, deliveryError = :err',
+        ExpressionAttributeValues: {
+          ':status': result.success ? 'Sent' : 'Failed',
+          ':err': result.error || null
+        }
+      }));
+    } catch (err) {
+      console.error('[SUBSCRIPTION EMAIL ERROR]', err);
+    }
+  })();
 
   return mainRecord;
 };
