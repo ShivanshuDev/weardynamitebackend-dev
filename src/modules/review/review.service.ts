@@ -1,6 +1,7 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 import { GetCommand, PutCommand, QueryCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
+import { getOrderDetail } from '../order/order.service';
 
 export const listReviews = async () => {
   const { Items } = await docClient.send(new QueryCommand({
@@ -23,7 +24,17 @@ export const getReviewsByProduct = async (productId: string) => {
   return (Items || []).filter(r => r.status === 'Approved');
 };
 
-export const addReview = async (userId: string, productId: string, data: { rating: number; title: string; comment: string; name: string }) => {
+export const addReview = async (userId: string, productId: string, orderId: string, data: { rating: number; title?: string; comment: string; name: string; imageUrls?: string[] }) => {
+  // 1. Verify Delivered Order
+  const order = await getOrderDetail(orderId);
+  if (!order) throw new Error('Order not found');
+  if (order.user_id !== userId) throw new Error('Unauthorized: Order does not belong to user');
+  if (order.status !== 'Delivered') throw new Error('Reviews are only allowed after the item is Delivered');
+  
+  // 2. Verify Product is in Order
+  const hasProduct = order.items?.some((i: any) => i.product_id === productId);
+  if (!hasProduct) throw new Error('Product not found in this order');
+
   const id = uuidv4();
   const record = {
     PK: `PRODUCT#${productId}`,
@@ -33,8 +44,9 @@ export const addReview = async (userId: string, productId: string, data: { ratin
     reviewId: id,
     userId,
     productId,
+    orderId,
     ...data,
-    status: 'Pending',
+    status: 'Pending', // Pending admin approval
     createdAt: Date.now()
   };
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: record }));

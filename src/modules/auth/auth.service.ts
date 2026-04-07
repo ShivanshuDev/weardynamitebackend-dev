@@ -1,13 +1,14 @@
 import { firebaseAdmin } from '../../utils/firebaseAdmin';
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 import { PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { MailService } from '../../utils/mailService';
 
 // ─── Customer / Admin Sync (Firebase Driven) ─────────────────────────────────
 
 /**
  * Ensures a user authenticated via Firebase exists in our DynamoDB Single-Table Schema.
  */
-export const syncUser = async (uid: string, email: string, name?: string, role: string = 'customer') => {
+export const syncUser = async (uid: string, email: string, name?: string, role: string = 'customer', photoURL?: string) => {
   const getCmd = new GetCommand({
     TableName: MAIN_TABLE,
     Key: { PK: `USER#${uid}`, SK: 'PROFILE' }
@@ -15,10 +16,18 @@ export const syncUser = async (uid: string, email: string, name?: string, role: 
   
   const { Item } = await docClient.send(getCmd);
   
-  // If the user already exists in DynamoDB, just return their profile
+  // If the user already exists in DynamoDB, check if updates are needed
   if (Item) {
+    console.log(`[AUTH DEBUG] User already exists in DynamoDB: ${uid}. Skipping email.`);
+    if ((name && Item.name !== name) || (photoURL && Item.photoURL !== photoURL)) {
+      const updatedProfile = { ...Item, name: name || Item.name, photoURL: photoURL || Item.photoURL };
+      await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: updatedProfile }));
+      return updatedProfile;
+    }
     return Item;
   }
+
+  console.log(`[AUTH DEBUG] New user detected: ${uid}. Proceeding with profile creation and welcome email.`);
 
   // Otherwise, create their Master Profile utilizing our explicit Identity GSIs
   const now = Date.now();
@@ -38,6 +47,7 @@ export const syncUser = async (uid: string, email: string, name?: string, role: 
     firebaseUid: uid,
     email: safeEmail,
     name: safeName,
+    photoURL: photoURL || '',
     role,
     joinedDate: now,
   };
@@ -46,6 +56,11 @@ export const syncUser = async (uid: string, email: string, name?: string, role: 
     TableName: MAIN_TABLE,
     Item: newProfile,
   }));
+  
+  // ─── Post-Sync: Welcome Communications (Async) ───────────────────────────
+  MailService.sendWelcomeEmail(safeEmail, safeName).catch(err => {
+    console.error(`[AUTH] Welcome email dispatch failed for ${safeEmail}:`, err);
+  });
   
   return newProfile;
 };

@@ -20,6 +20,3 @@ functions:
       - httpApi:
           path: '*'
           method: '*'
-
-plugins:
-  - serverless-plugin-typescript

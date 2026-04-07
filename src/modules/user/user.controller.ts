@@ -2,47 +2,47 @@ import { Response } from 'express';
 import { AuthRequest } from '../../middleware/auth';
 import * as UserService from './user.service';
 
-export const getProfile = (req: AuthRequest, res: Response) => {
-  try { res.json(UserService.getProfile(req.user!.id)); }
+export const getProfile = async (req: AuthRequest, res: Response) => {
+  try { res.json(await UserService.getProfile(req.user!.id)); }
   catch (e: any) { res.status(404).json({ message: e.message }); }
 };
 
-export const updateProfile = (req: AuthRequest, res: Response) => {
-  try { res.json(UserService.updateProfile(req.user!.id, req.body)); }
+export const updateProfile = async (req: AuthRequest, res: Response) => {
+  try { res.json(await UserService.updateProfile(req.user!.id, req.body)); }
   catch (e: any) { res.status(400).json({ message: e.message }); }
 };
 
-export const getAddresses = (req: AuthRequest, res: Response) => {
-  try { res.json(UserService.getAddresses(req.user!.id)); }
+export const getAddresses = async (req: AuthRequest, res: Response) => {
+  try { res.json(await UserService.getAddresses(req.user!.id)); }
   catch (e: any) { res.status(400).json({ message: e.message }); }
 };
 
-export const addAddress = (req: AuthRequest, res: Response) => {
-  try { res.status(201).json(UserService.addAddress(req.user!.id, req.body)); }
+export const addAddress = async (req: AuthRequest, res: Response) => {
+  try { res.status(201).json(await UserService.addAddress(req.user!.id, req.body)); }
   catch (e: any) { res.status(400).json({ message: e.message }); }
 };
 
-export const updateAddress = (req: AuthRequest, res: Response) => {
-  try { res.json(UserService.updateAddress(req.user!.id, req.params.id as string, req.body)); }
+export const updateAddress = async (req: AuthRequest, res: Response) => {
+  try { res.json(await UserService.updateAddress(req.user!.id, req.params.id as string, req.body)); }
   catch (e: any) { res.status(400).json({ message: e.message }); }
 };
 
-export const deleteAddress = (req: AuthRequest, res: Response) => {
-  try { res.json(UserService.deleteAddress(req.user!.id, req.params.id as string)); }
+export const deleteAddress = async (req: AuthRequest, res: Response) => {
+  try { res.json(await UserService.deleteAddress(req.user!.id, req.params.id as string)); }
   catch (e: any) { res.status(400).json({ message: e.message }); }
 };
 
-export const setDefaultAddress = (req: AuthRequest, res: Response) => {
-  try { res.json(UserService.setDefaultAddress(req.user!.id, req.params.id as string)); }
+export const setDefaultAddress = async (req: AuthRequest, res: Response) => {
+  try { res.json(await UserService.setDefaultAddress(req.user!.id, req.params.id as string)); }
   catch (e: any) { res.status(400).json({ message: e.message }); }
 };
 
-export const updatePreferences = (req: AuthRequest, res: Response) => {
-  try { res.json(UserService.updatePreferences(req.user!.id, req.body)); }
+export const updatePreferences = async (req: AuthRequest, res: Response) => {
+  try { res.json(await UserService.updatePreferences(req.user!.id, req.body)); }
   catch (e: any) { res.status(400).json({ message: e.message }); }
 };
 
-export const adminListUsers = (req: AuthRequest, res: Response) => {
-  try { res.json(UserService.adminListUsers()); }
+export const adminListUsers = async (req: AuthRequest, res: Response) => {
+  try { res.json(await UserService.adminListUsers()); }
   catch (e: any) { res.status(400).json({ message: e.message }); }
 };

@@ -32,6 +32,7 @@ export const getAddresses = async (userId: string) => {
 };
 
 export const addAddress = async (userId: string, address: Record<string, any>) => {
+  const existing = await getAddresses(userId);
   const id = uuidv4();
   const record = {
     PK: `USER#${userId}`,
@@ -39,6 +40,7 @@ export const addAddress = async (userId: string, address: Record<string, any>) =
     ownerId: userId,
     addressId: id,
     ...address,
+    isDefault: existing.length === 0 ? true : (address.isDefault || false)
   };
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: record }));
   return record;

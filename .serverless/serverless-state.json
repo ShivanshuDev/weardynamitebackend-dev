@@ -183,7 +183,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/weardynamite-backend/dev/1774780405545-2026-03-29T10:33:25.545Z/weardynamite-backend.zip"
+                "S3Key": "serverless/weardynamite-backend/dev/1775587051608-2026-04-07T18:37:31.608Z/weardynamite-backend.zip"
               },
               "Handler": "src/handler.handler",
               "Runtime": "nodejs20.x",
@@ -193,7 +193,8 @@
               "Environment": {
                 "Variables": {
                   "NODE_ENV": "dev",
-                  "PORT": "3001"
+                  "PORT": "3001",
+                  "NODE_OPTIONS": "--enable-source-maps"
                 }
               },
               "Role": {
@@ -207,14 +208,14 @@
               "ApiLogGroup"
             ]
           },
-          "ApiLambdaVersionbBODC2Hf9ob7aqQnIkOUfEOQCZFoSplcjRKyOV9T6x0": {
+          "ApiLambdaVersionQhFEEt6NWXPwv2py5K5UvLUvmIO8JFHl5HU2JLK9I": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "ApiLambdaFunction"
               },
-              "CodeSha256": "cy8yLzVmgUrxvOtB7+XSbCbWhEoCGcrX0JVIBo+Rsm8="
+              "CodeSha256": "HkDcRqpepbgq+qvhMhLl4KFDczrwuoXCzdnkc7Bk91c="
             }
           },
           "HttpApi": {
@@ -345,7 +346,7 @@
           "ApiLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "ApiLambdaVersionbBODC2Hf9ob7aqQnIkOUfEOQCZFoSplcjRKyOV9T6x0"
+              "Ref": "ApiLambdaVersionQhFEEt6NWXPwv2py5K5UvLUvmIO8JFHl5HU2JLK9I"
             },
             "Export": {
               "Name": "sls-weardynamite-backend-dev-ApiLambdaFunctionQualifiedArn"
@@ -471,9 +472,6 @@
       },
       "vpc": {}
     },
-    "plugins": [
-      "serverless-plugin-typescript"
-    ],
     "pluginsData": {},
     "functions": {
       "api": {
@@ -488,22 +486,19 @@
           }
         ],
         "name": "weardynamite-backend-dev-api",
-        "package": {
-          "exclude": [
-            "node_modules/serverless-plugin-typescript"
-          ],
-          "include": [],
-          "patterns": []
+        "environment": {
+          "NODE_OPTIONS": "--enable-source-maps"
         },
+        "package": {},
         "memory": 512,
         "timeout": 10,
         "runtime": "nodejs20.x",
         "vpc": {},
-        "versionLogicalId": "ApiLambdaVersionbBODC2Hf9ob7aqQnIkOUfEOQCZFoSplcjRKyOV9T6x0"
+        "versionLogicalId": "ApiLambdaVersionQhFEEt6NWXPwv2py5K5UvLUvmIO8JFHl5HU2JLK9I"
       }
     },
     "configValidationMode": "warn",
-    "serviceFilename": "serverless.yml",
+    "serviceFilename": "serverless",
     "initialServerlessConfig": {
       "service": "weardynamite-backend",
       "provider": {
@@ -511,17 +506,14 @@
       },
       "functions": {
         "$ref": "$[\"service\"][\"functions\"]"
-      },
-      "plugins": {
-        "$ref": "$[\"service\"][\"plugins\"]"
       }
     },
-    "layers": {},
-    "isDashboardMonitoringPreconfigured": false,
-    "artifact": "H:\\weardynamite\\backend\\.build\\.serverless\\weardynamite-backend.zip"
+    "appId": null,
+    "orgId": null,
+    "layers": {}
   },
   "package": {
-    "artifactDirectoryName": "serverless/weardynamite-backend/dev/1774780405545-2026-03-29T10:33:25.545Z",
+    "artifactDirectoryName": "serverless/weardynamite-backend/dev/1775587051608-2026-04-07T18:37:31.608Z",
     "artifact": "weardynamite-backend.zip"
   }
 }

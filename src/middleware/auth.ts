@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { firebaseAdmin } from '../utils/firebaseAdmin';
 
 export interface AuthRequest extends Request {
-  user?: { id: string; email: string; role: string; firebaseUid: string };
+  user?: { id: string; email: string; role: string; firebaseUid: string; photoURL?: string };
 }
 
 export const authenticate = async (req: AuthRequest, res: Response, next: NextFunction): Promise<void> => {
@@ -44,7 +44,8 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       id: decodedToken.uid,
       firebaseUid: decodedToken.uid,
       email: decodedToken.email || '',
-      role: (decodedToken.admin || decodedToken.email === 'skshivanshu1234@gmail.com') ? 'admin' : 'customer'
+      role: (decodedToken.admin || decodedToken.email === 'skshivanshu1234@gmail.com') ? 'admin' : 'customer',
+      photoURL: decodedToken.picture || ''
     };
     
     next();

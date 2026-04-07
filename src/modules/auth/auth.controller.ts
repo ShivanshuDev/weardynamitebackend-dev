@@ -10,11 +10,11 @@ export const sync = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: 'Sync failed: No authenticated user context.' });
     }
 
-    // Capture optional name submitted from frontend
-    const { name } = req.body;
+    // Capture optional name/photo submitted from frontend
+    const { name, photoURL } = req.body;
     
     // Sync the Firebase authenticated user with our explicit DynamoDB master profile
-    const profile = await AuthService.syncUser(user.id, user.email, name, user.role);
+    const profile = await AuthService.syncUser(user.id, user.email, name, user.role, photoURL || user.photoURL);
     res.json({ message: 'Synchronized profile', profile });
   } catch (e: any) { 
     console.error('[AUTH_SYNC_ERROR]', e);

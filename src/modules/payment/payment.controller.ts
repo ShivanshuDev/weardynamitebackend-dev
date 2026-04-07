@@ -9,7 +9,7 @@ import * as paymentService from './payment.service';
  */
 export const initiatePayment = async (req: Request, res: Response) => {
   try {
-    const { amount, productInfo, firstname, email, phone, addressId, items } = req.body;
+    const { amount, productInfo, firstname, email, phone, addressId, address, items, couponCode } = req.body;
     const userId = (req as any).user?.id; // Assuming auth middleware provides this
 
     if (!userId) {
@@ -24,7 +24,9 @@ export const initiatePayment = async (req: Request, res: Response) => {
       email,
       phone,
       addressId,
+      address, // Pass the full address object if provided
       items,
+      couponCode
     });
 
     res.json(paymentData);

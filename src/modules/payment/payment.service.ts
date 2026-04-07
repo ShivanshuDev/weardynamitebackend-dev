@@ -1,12 +1,13 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
-import { PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, QueryCommand, UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import * as crypto from 'crypto';
 import * as OrderService from '../order/order.service';
+import { syncUser } from '../auth/auth.service';
 
 const PAYU_KEY = process.env.PAYU_MERCHANT_KEY || 'gtK38P';
 const PAYU_SALT = process.env.PAYU_SALT || 'eCwWELxi';
 const PAYU_URL = process.env.PAYU_URL || 'https://test.payu.in/_payment';
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5174';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 interface PaymentInitiateParams {
   userId: string;
@@ -16,6 +17,7 @@ interface PaymentInitiateParams {
   email: string;
   phone: string;
   addressId: string;
+  address?: any; // Full address object from frontend
   items: any[];
   couponCode?: string;
 }
@@ -26,21 +28,80 @@ interface PaymentInitiateParams {
  * 2. Generating the PayU security hash.
  */
 export const initiateTransaction = async (params: PaymentInitiateParams) => {
-  const { userId, amount, productInfo, firstname, email, phone, addressId, items, couponCode } = params;
+  const { userId, amount, productInfo, firstname, email, phone, addressId, address: fullAddress, items, couponCode } = params;
 
-  // 1. Create the Order in the database first (Reserves stock)
+  // 1. Fetch User Profile
+  let { Item: user } = await docClient.send(new GetCommand({
+    TableName: MAIN_TABLE,
+    Key: { PK: `USER#${userId}`, SK: 'PROFILE' }
+  }));
+
+  // SELF-HEALING: If profile is missing (sync lag), create it immediately using session data
+  if (!user) {
+    console.warn(`[PAYMENT AUDIT] Profile missing for USER#${userId}. Triggering self-healing reconstruction.`);
+    user = (await syncUser(userId, email, firstname)) as any;
+  }
+
+  // 2. Fetch or Recover Shipping Address
+  let address = fullAddress;
+  
+  // LOGGING: Real-time transparency for debugging
+  console.log(`[PAYMENT AUDIT] Discovery phase for USER#${userId}: hasFullAddress=${!!fullAddress}, addressId=${addressId}`);
+
+  if (!address) {
+    const { Item: dbAddress } = await docClient.send(new GetCommand({
+      TableName: MAIN_TABLE,
+      Key: { PK: `USER#${userId}`, SK: `ADDRESS#${addressId}` }
+    }));
+    address = dbAddress;
+
+    // LAST-RESORT RECOVERY: If the specific addressId is missing, try to find ANY address for this user
+    if (!address) {
+      console.warn(`[PAYMENT AUDIT] Explicit address ${addressId} not found. Attempting 'First-Available' recovery for USER#${userId}.`);
+      const { Items } = await docClient.send(new QueryCommand({
+        TableName: MAIN_TABLE,
+        KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+        ExpressionAttributeValues: { ':pk': `USER#${userId}`, ':sk': 'ADDRESS#' },
+        Limit: 1
+      }));
+      if (Items && Items.length > 0) {
+        address = Items[0];
+        console.log(`[PAYMENT AUDIT] Recovery successful: Using address ${address.addressId || address.id}`);
+      }
+    }
+  }
+
+  // 3. Absolute Guards with Descriptive Errors
+  if (!user) {
+    console.error(`[PAYMENT BLOCK] Missing Master Profile for USER#${userId}`);
+    throw new Error('User profile incomplete. Please try logging out and in once to refresh your session.');
+  }
+
+  if (!address) {
+    console.error(`[PAYMENT BLOCK] Missing Shipping Address after recovery phase for USER#${userId}`);
+    throw new Error('Shipping address missing. Please ensure you have added an address in your profile before checking out.');
+  }
+
+  // 2. Create the Order in the database first (Reserves stock)
   const order = await OrderService.placeOrder(userId, {
-    addressId,
-    paymentMethod: 'Online',
+    address_id: addressId,
+    payment_method: 'Online',
     items,
-    couponCode
+    coupon_code: couponCode,
+    customer_details: {
+      name: user.name || 'Guest',
+      email: user.email,
+      phone: address.phone || user.phone
+    },
+    shipping_address: address
   });
 
   const txnid = order.order_id;
   const amountStr = amount.toFixed(2);
 
   // 2. Generate PayU Hash
-  // Formula: key|txnid|amount|productinfo|firstname|email|udf1|udf2|udf3|udf4|udf5||||||salt
+  // Formula: key|txnid|amount|productinfo|firstname|email|udf1|udf2|udf3|udf4|udf5|udf6|udf7|udf8|udf9|udf10|salt
+  // Total 16 pipes. We use empty strings for udfs.
   const hashString = `${PAYU_KEY}|${txnid}|${amountStr}|${productInfo}|${firstname}|${email}|||||||||||${PAYU_SALT}`;
   const hash = crypto.createHash('sha512').update(hashString).digest('hex');
 
@@ -70,6 +131,7 @@ export const processPaymentCallback = async (payuData: any) => {
   
   // 1. Verify Hash (Reversed formula for callback)
   // Formula: salt|status||||||udf5|udf4|udf3|udf2|udf1|email|firstname|productinfo|amount|txnid|key
+  // Total 16 pipes.
   const checkHashString = `${PAYU_SALT}|${status}|||||||||||${payuData.email}|${payuData.firstname}|${payuData.productinfo}|${amount}|${txnid}|${key}`;
   const expectedHash = crypto.createHash('sha512').update(checkHashString).digest('hex');
 
@@ -87,8 +149,9 @@ export const processPaymentCallback = async (payuData: any) => {
     await OrderService.updateOrderStatus(txnid, 'Pending');
   }
 
+  const path = isSuccess ? '/order-success' : '/order-status';
   return {
-    redirectUrl: `${FRONTEND_URL}/order-status?id=${txnid}&status=${status}`
+    redirectUrl: `${FRONTEND_URL}${path}?id=${txnid}&status=${status}`
   };
 };
 

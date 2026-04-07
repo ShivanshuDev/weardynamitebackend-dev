@@ -89,8 +89,8 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
   const { items, address_id: addressId, payment_method: paymentMethod, coupon_code: couponCode, customer_details, shipping_address } = data;
   if (!items?.length) throw new Error('No items in order');
 
-  const orderId = uuidv4();
-  const orderNumber = `ORD-${Date.now().toString().slice(-6)}`;
+  const orderId = `WDT${Math.floor(10000000 + Math.random() * 90000000)}`;
+  const orderNumber = orderId; // Using the WDT ID as the official order number
   const now = Date.now();
 
   let subtotal = 0;
@@ -139,6 +139,8 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
       size: item.size,
       for_whom: item.forWhom,
       image: Array.isArray(product.images) ? product.images[0] : (product.image || ''),
+      isReturnable: product.isReturnable !== undefined ? product.isReturnable : true,
+      returnDays: product.returnDays || 7,
       created_at: now
     };
 
