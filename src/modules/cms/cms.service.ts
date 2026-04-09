@@ -11,10 +11,34 @@ export const getCms = async () => {
   return Item || getDefaultCms();
 };
 
-export const updateCmsSection = async (section: string, data: Record<string, any>) => {
+export const updateCmsSection = async (sectionPath: string, data: any) => {
   const current = (await getCms()) as any;
-  const updated = { ...current, [section]: { ...(current[section] || {}), ...data } };
-  await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: { PK: CMS_PK, SK: 'CMS', ...updated } }));
+  const updated = { ...current };
+  
+  const parts = sectionPath.split('.');
+  let target = updated;
+  
+  // Traverse to the parent of the final key
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i];
+    if (!target[part]) target[part] = {};
+    target[part] = { ...target[part] }; // Ensure shallow copy for immutability during traversal
+    target = target[part];
+  }
+  
+  // Update the final key
+  const finalKey = parts[parts.length - 1];
+  target[finalKey] = data;
+
+  await docClient.send(new PutCommand({ 
+    TableName: MAIN_TABLE, 
+    Item: { 
+      PK: CMS_PK, 
+      SK: 'CMS',
+      ...updated
+    } 
+  }));
+  
   return updated;
 };
 
@@ -122,6 +146,15 @@ const getDefaultCms = () => ({
     faq: [
       { id: 1, q: 'How long does shipping take?', a: 'Standard delivery takes 3-5 business days across India.' }
     ],
-    privacy: 'Your data is protected by encryption.'
+    privacy: 'Your data is protected by encryption.',
+    terms: {
+      pageTitle: 'Terms of Service',
+      subtitle: 'Please read these terms carefully before using our service.',
+      lastUpdated: 'April 2026',
+      items: [
+        { title: 'Introduction', content: 'By using our site, you agree to our terms...' },
+        { title: 'Intellectual Property', content: 'All content on this site is owned by Wear Dynamite.' }
+      ]
+    }
   }
 });

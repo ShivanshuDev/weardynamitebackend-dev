@@ -162,7 +162,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/weardynamite-backend/dev/1775587051608-2026-04-07T18:37:31.608Z/weardynamite-backend.zip"
+          "S3Key": "serverless/weardynamite-backend/dev/1775758012057-2026-04-09T18:06:52.057Z/weardynamite-backend.zip"
         },
         "Handler": "src/handler.handler",
         "Runtime": "nodejs20.x",
@@ -172,8 +172,7 @@
         "Environment": {
           "Variables": {
             "NODE_ENV": "dev",
-            "PORT": "3001",
-            "NODE_OPTIONS": "--enable-source-maps"
+            "PORT": "3001"
           }
         },
         "Role": {
@@ -187,44 +186,21 @@
         "ApiLogGroup"
       ]
     },
-    "ApiLambdaVersionQhFEEt6NWXPwv2py5K5UvLUvmIO8JFHl5HU2JLK9I": {
+    "ApiLambdaVersiont2Ct93ZBsTPaEjSEBtShdX0TBjFqkoFllcxpGx3rg": {
       "Type": "AWS::Lambda::Version",
       "DeletionPolicy": "Retain",
       "Properties": {
         "FunctionName": {
           "Ref": "ApiLambdaFunction"
         },
-        "CodeSha256": "HkDcRqpepbgq+qvhMhLl4KFDczrwuoXCzdnkc7Bk91c="
+        "CodeSha256": "QMONKAb9BrnfUWF8UWcHEro45+RVABXKEpPE/UXj5bA="
       }
     },
     "HttpApi": {
       "Type": "AWS::ApiGatewayV2::Api",
       "Properties": {
         "Name": "dev-weardynamite-backend",
-        "ProtocolType": "HTTP",
-        "CorsConfiguration": {
-          "AllowHeaders": [
-            "Content-Type",
-            "X-Amz-Date",
-            "Authorization",
-            "X-Api-Key",
-            "X-Amz-Security-Token",
-            "X-Amz-User-Agent",
-            "X-Amzn-Trace-Id"
-          ],
-          "AllowMethods": [
-            "OPTIONS",
-            "GET",
-            "POST",
-            "PUT",
-            "PATCH",
-            "HEAD",
-            "DELETE"
-          ],
-          "AllowOrigins": [
-            "*"
-          ]
-        }
+        "ProtocolType": "HTTP"
       }
     },
     "HttpApiStage": {
@@ -328,7 +304,7 @@
     "ApiLambdaFunctionQualifiedArn": {
       "Description": "Current Lambda function version",
       "Value": {
-        "Ref": "ApiLambdaVersionQhFEEt6NWXPwv2py5K5UvLUvmIO8JFHl5HU2JLK9I"
+        "Ref": "ApiLambdaVersiont2Ct93ZBsTPaEjSEBtShdX0TBjFqkoFllcxpGx3rg"
       },
       "Export": {
         "Name": "sls-weardynamite-backend-dev-ApiLambdaFunctionQualifiedArn"

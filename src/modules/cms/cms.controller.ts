@@ -1,12 +1,22 @@
 import { Request, Response } from 'express';
 import * as CmsService from './cms.service';
 
-export const getCms = (_req: Request, res: Response) => {
-  try { res.json(CmsService.getCms()); } catch (e: any) { res.status(400).json({ message: e.message }); }
+export const getCms = async (_req: Request, res: Response) => {
+  try { res.json(await CmsService.getCms()); } catch (e: any) { res.status(400).json({ message: e.message }); }
 };
 
-const sectionUpdater = (section: string) => (req: Request, res: Response) => {
-  try { res.json(CmsService.updateCmsSection(section, req.body)); } catch (e: any) { res.status(400).json({ message: e.message }); }
+const sectionUpdater = (section: string) => async (req: Request, res: Response) => {
+  try { res.json(await CmsService.updateCmsSection(section, req.body)); } catch (e: any) { res.status(400).json({ message: e.message }); }
+};
+
+export const updateCmsByPath = async (req: Request, res: Response) => {
+  try {
+    const rawPath = req.params[0] || '';
+    const path = rawPath.replace(/\//g, '.').replace(/^\.|\.$/g, '');
+    res.json(await CmsService.updateCmsSection(path, req.body));
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
 };
 
 export const updateHomeCarousel = sectionUpdater('home.carousel');
@@ -21,6 +31,7 @@ export const updateHomeNewsletter = sectionUpdater('home.newsletter');
 export const updateStandard = sectionUpdater('standard');
 export const updateProcess = sectionUpdater('process');
 export const updateContact = sectionUpdater('contact');
+export const updatePolicies = sectionUpdater('policies');
 export const updatePoliciesShipping = sectionUpdater('policies.shipping');
 export const updatePoliciesFaq = sectionUpdater('policies.faq');
 export const updatePoliciesPrivacy = sectionUpdater('policies.privacy');
