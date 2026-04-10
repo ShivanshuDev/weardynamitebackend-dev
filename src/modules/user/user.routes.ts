@@ -8,7 +8,9 @@ const admin = adminOnly as any;
 
 router.get('/profile', auth, UserController.getProfile as any);
 router.put('/profile', auth, UserController.updateProfile as any);
+router.patch('/profile', auth, UserController.updateProfile as any);
 router.put('/preferences', auth, UserController.updatePreferences as any);
+router.post('/fcm-token', auth, UserController.updateFcmToken as any);
 
 router.get('/addresses', auth, UserController.getAddresses as any);
 router.post('/addresses', auth, UserController.addAddress as any);

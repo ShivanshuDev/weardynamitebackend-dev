@@ -12,9 +12,41 @@ export const getProfile = async (userId: string) => {
   return safe;
 };
 
-export const updateProfile = async (userId: string, updates: { name?: string; phone?: string }) => {
+/**
+ * Update user's FCM device token for push notifications
+ */
+export const updateFcmToken = async (userId: string, token: string) => {
   const current = await getProfile(userId);
-  const updated = { ...current, ...updates };
+  await docClient.send(new PutCommand({
+    TableName: MAIN_TABLE,
+    Item: { ...current, fcmToken: token, PK: `USER#${userId}`, SK: 'PROFILE' }
+  }));
+  return { success: true };
+};
+
+export const updateProfile = async (userId: string, updates: { 
+  name?: string; 
+  phone?: string;
+  phoneSecondary?: string;
+  dob?: string;
+  interests?: string;
+}) => {
+  const current = await getProfile(userId);
+  
+  // No-Scan Indexing logic
+  let birthdayIndex = {};
+  if (updates.dob) {
+    const dobDate = new Date(updates.dob);
+    const mm = String(dobDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(dobDate.getDate()).padStart(2, '0');
+    birthdayIndex = {
+      birthday_mm_dd: `${mm}-${dd}`,
+      GSI5PK: 'BIRTHDAY',
+      GSI5SK: `${mm}-${dd}`
+    };
+  }
+
+  const updated = { ...current, ...updates, ...birthdayIndex };
   await docClient.send(new PutCommand({
     TableName: MAIN_TABLE, 
     Item: { ...updated, PK: `USER#${userId}`, SK: 'PROFILE' }

@@ -23,6 +23,7 @@ import customizationRoutes from './modules/customization/customization.routes';
 import paymentRoutes from './modules/payment/payment.routes';
 import notificationRoutes from './modules/notification/notification.routes';
 import subscriptionRoutes from './modules/subscription/subscription.routes';
+import { initScheduler } from './utils/scheduler';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -79,6 +80,7 @@ if (!process.env.LAMBDA_TASK_ROOT && !process.env.IS_OFFLINE) {
   app.listen(PORT, () => {
     console.log(`\n🚀 weardynamite API running at http://localhost:${PORT}`);
     console.log(`📋 Health check: http://localhost:${PORT}/api/health\n`);
+    initScheduler();
   });
 }
 

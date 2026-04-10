@@ -7,6 +7,8 @@ import {
   UpdateCommand
 } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
+import { NotificationService } from '../../utils/notificationService';
+import { adminListUsers } from '../user/user.service';
 
 export interface Product {
   product_id: string;
@@ -166,6 +168,13 @@ export const createProduct = async (
       ConditionExpression: 'attribute_not_exists(PK)'
     })
   );
+
+  // Broadcast notification if active
+  if (status === 'Active') {
+    adminListUsers().then(users => {
+      NotificationService.broadcastNewProduct(product, users);
+    }).catch(console.error);
+  }
 
   return product;
 };

@@ -42,6 +42,11 @@ export const updatePreferences = async (req: AuthRequest, res: Response) => {
   catch (e: any) { res.status(400).json({ message: e.message }); }
 };
 
+export const updateFcmToken = async (req: AuthRequest, res: Response) => {
+  try { res.json(await UserService.updateFcmToken(req.user!.id, req.body.token)); }
+  catch (e: any) { res.status(400).json({ message: e.message }); }
+};
+
 export const adminListUsers = async (req: AuthRequest, res: Response) => {
   try { res.json(await UserService.adminListUsers()); }
   catch (e: any) { res.status(400).json({ message: e.message }); }

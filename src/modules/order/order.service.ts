@@ -2,6 +2,8 @@ import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { addTransaction, updateDashboardStats } from '../ledger/ledger.service';
+import { NotificationService } from '../../utils/notificationService';
+import { getProfile } from '../user/user.service';
 
 // ─── Cart ────────────────────────────────────────────────────────────────────
 
@@ -258,6 +260,10 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
     date: now
   });
 
+  // Fire background notifications
+  const user = await getProfile(userId);
+  NotificationService.sendOrderConfirmed(orderSummary, processedItems, user).catch(console.error);
+
   return { order_id: orderId, order_number: orderNumber, total_amount: totalAmount, status: 'Pending' };
 };
 
@@ -376,6 +382,10 @@ export const updateOrderStatus = async (orderId: string, status: string) => {
     }
   }
 
+  // Notify user of status change
+  const user = await getProfile(order.user_id);
+  NotificationService.sendOrderStatusUpdate(order, status, user).catch(console.error);
+
   return { message: 'Order Status Updated', status };
 };
 
@@ -397,5 +407,10 @@ export const updateOrderTracking = async (orderId: string, trackingNumber: strin
       ':now': now
     }
   }));
+  // Notify user of tracking update
+  const order = await getOrderDetail(orderId);
+  const user = await getProfile(order.user_id);
+  NotificationService.sendOrderStatusUpdate(order, 'Shipped', user).catch(console.error);
+
   return { message: 'Order Tracking Updated' };
 };
