@@ -7,88 +7,34 @@
     "provider": {
       "name": "aws",
       "runtime": "nodejs20.x",
-      "region": "ap-southeast-2",
+      "region": "ap-south-1",
       "stage": "dev",
-      "memorySize": 512,
-      "timeout": 10,
+      "timeout": 29,
       "environment": {
         "NODE_ENV": "dev",
-        "PORT": "3001"
+        "PORT": "5001",
+        "JWT_SECRET": "weardynamite_super_secret_jwt_key_2026",
+        "JWT_EXPIRES_IN": "1d",
+        "S3_BUCKET_NAME": "weardynamite-dev-assets",
+        "DYNAMODB_TABLE_NAME": "weardynamite-dev",
+        "FIREBASE_PROJECT_ID": "weardynamite-test",
+        "FIREBASE_CLIENT_EMAIL": "firebase-adminsdk-fbsvc@weardynamite-test.iam.gserviceaccount.com",
+        "FIREBASE_PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDDy1W7rU1zu2AL\nAM8cLh0FbxmjnpSAmhnBp3oDHp+xN80Q+vl0pqAzHZlxvkWOr8kfeo4iKyn10SRF\nIlXE8buaExA0w0/VbM/lPRI2oaUMHpO1qlErJsWauJXTsyCEsPZFlvVFzXpENvrX\n6qdUtnaGSaltS4dhdH0CG2PrQ+xGrvDk3VkQs8LJGYoavsvIgu2qFgsdGq7LZV0i\ng3oduyRJnUHuSsuS2lg0C7+N6UJqT/p5FxkgTzFDCGa27rEvh2PvCaxDkADdCMoz\nKJ29o1mUybVIVndORf+YsjywdWLy/fogFxNSSHctYdWnz6Pc4fl4euXlyM2LBA3k\nyCYDyGCzAgMBAAECggEAHjeq/yCThAmGnJwe2sAJLZYEdHqce66MzBTvYTzgM4cj\nqHu7dTPkJI9sZ6AQdyGNHkUZW4+i1bPV76+JYjBWnkRT63i7QPqeqUgAIBtZcCHl\n9RMYnNrKg4L6aKZMHf57u6i9KO058f40P4+RDKNubnI+6kXOWo2SX3lftecRN6Uy\nDrp2gK2JUQE/zKShGXGtZ7n6DIHXfvBTmcJ/RJug9xtxdPdFrBOtlozqm1niEj3d\nYK8+LoFBzBEHZus102IhV0xxitTg7JLAY6Nt+eWejTDCA2V2WdB5d5oVXsjfvEKI\nM9nfvt0225jM6RLfg48V5XPd6qc6qpp+qTZ+CuPiDQKBgQDqHIa89PRQLmn0G0tj\ncz+x5WFdgIW514PYX87nX6N/jXfZDZKTtx0weLp+EaPJvE29pjj9sM8UeUzm9qEi\nXJY/rdIXYoQvjkEaM9MODDNRX5GruhIXHKbF6nT24xlZFMwdjwYXUMajYMy7k6/b\n0/dK+wlhrWD10MeUG/gGed52xwKBgQDWGa9NtNxj2OwIGVURMC0agCS4LdcA9Isi\nRsJD7IbKl9DPCDXawjRmaBjsiaKqX4X/3OMsL0PD6mzI/NEZ+iLLZ7Tr860tImTn\nGbmFYjOeMDMb/YTIsVD7/2ungL1HolRShx4UeY3uwmDfxGCPhNU7esD+at7X2HpT\nwCcr0TBqtQKBgQCU1CO39kVmv8rtu3hWtcqVTkxyg6T/uwl/QZEoN/2Zthatrtoy\n++MbkHSGdrJYKlSFryll5cQPsPl5juprDM8blmYMJb4A+X9bp/yRXqI1JftWX4jm\nlnlTMrS+yyqvHfCRDf6CTgCpln0w9jeDGaKJUUPqi60rOFnYR1uKymjpuwKBgQCJ\n7HP1QDz2CalMMl2NvBZiSwjcqZMnZ2I2S5UcQsQ2wQRgSu6+pXsyOX9M6gGjdfQR\n909ViIFENcGs3MkrzesaVA3GLu1x9QVBp13PYorULkLOlkwzKZ99J3dHqfTFr/pY\nS/kBwajAlfHoVU7LRgxDy/mGLHywWiG70D6ryJBDPQKBgEaHt5WLi6jng9ukL7j0\np0PuxOvrJMaDCtKkwHsAkhpKTxPpYAjJE10lL7q6JSRpk1gfxI0ScOH881zevjrT\nQxrfZkbbdFO1LKkbA3p3M5va8YoOu1/w7kfRwwSM9cRhRHqsS0fiLq3mdFL8mf+C\nkxFo77GiIyuMik5idASFNpSf\n-----END PRIVATE KEY-----\n",
+        "PAYU_MERCHANT_KEY": "OUzBZQ",
+        "PAYU_SALT": "luqn4DGBYHWqVu1yQrZFyEA8vOsgvitY",
+        "PAYU_CLIENT_ID": "05d3b31aba22d43cd4981b062b2fab8929b25ff4485ac087bcefaf6f0f3f0da6",
+        "PAYU_CLIENT_SECRET": "fb6b34e8f5893a4a8cddc07e5c68cede87ae9a439027fa502ee9cfa9703bab84",
+        "PAYU_URL": "https://test.payu.in/_payment",
+        "FRONTEND_URL": "http://localhost:5173",
+        "BACKEND_URL": "http://localhost:5001",
+        "GMAIL_USER": "weardynamitehub@gmail.com",
+        "GMAIL_APP_PASSWORD": "sslt igva aohs cskh"
       },
       "versionFunctions": true,
       "compiledCloudFormationTemplate": {
         "AWSTemplateFormatVersion": "2010-09-09",
         "Description": "The AWS CloudFormation template for this Serverless application",
         "Resources": {
-          "ServerlessDeploymentBucket": {
-            "Type": "AWS::S3::Bucket",
-            "Properties": {
-              "BucketEncryption": {
-                "ServerSideEncryptionConfiguration": [
-                  {
-                    "ServerSideEncryptionByDefault": {
-                      "SSEAlgorithm": "AES256"
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          "ServerlessDeploymentBucketPolicy": {
-            "Type": "AWS::S3::BucketPolicy",
-            "Properties": {
-              "Bucket": {
-                "Ref": "ServerlessDeploymentBucket"
-              },
-              "PolicyDocument": {
-                "Statement": [
-                  {
-                    "Action": "s3:*",
-                    "Effect": "Deny",
-                    "Principal": "*",
-                    "Resource": [
-                      {
-                        "Fn::Join": [
-                          "",
-                          [
-                            "arn:",
-                            {
-                              "Ref": "AWS::Partition"
-                            },
-                            ":s3:::",
-                            {
-                              "Ref": "ServerlessDeploymentBucket"
-                            },
-                            "/*"
-                          ]
-                        ]
-                      },
-                      {
-                        "Fn::Join": [
-                          "",
-                          [
-                            "arn:",
-                            {
-                              "Ref": "AWS::Partition"
-                            },
-                            ":s3:::",
-                            {
-                              "Ref": "ServerlessDeploymentBucket"
-                            }
-                          ]
-                        ]
-                      }
-                    ],
-                    "Condition": {
-                      "Bool": {
-                        "aws:SecureTransport": false
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          },
           "ApiLogGroup": {
             "Type": "AWS::Logs::LogGroup",
             "Properties": {
@@ -177,20 +123,35 @@
             "Type": "AWS::Lambda::Function",
             "Properties": {
               "Code": {
-                "S3Bucket": {
-                  "Ref": "ServerlessDeploymentBucket"
-                },
-                "S3Key": "serverless/weardynamite-backend/dev/1775758012057-2026-04-09T18:06:52.057Z/weardynamite-backend.zip"
+                "S3Bucket": "serverless-framework-deployments-ap-south-1-ca89df64-a1c3",
+                "S3Key": "serverless/weardynamite-backend/dev/1775759797372-2026-04-09T18:36:37.372Z/weardynamite-backend.zip"
               },
               "Handler": "src/handler.handler",
               "Runtime": "nodejs20.x",
               "FunctionName": "weardynamite-backend-dev-api",
-              "MemorySize": 512,
-              "Timeout": 10,
+              "MemorySize": 1024,
+              "Timeout": 29,
               "Environment": {
                 "Variables": {
                   "NODE_ENV": "dev",
-                  "PORT": "3001"
+                  "PORT": "5001",
+                  "JWT_SECRET": "weardynamite_super_secret_jwt_key_2026",
+                  "JWT_EXPIRES_IN": "1d",
+                  "S3_BUCKET_NAME": "weardynamite-dev-assets",
+                  "DYNAMODB_TABLE_NAME": "weardynamite-dev",
+                  "FIREBASE_PROJECT_ID": "weardynamite-test",
+                  "FIREBASE_CLIENT_EMAIL": "firebase-adminsdk-fbsvc@weardynamite-test.iam.gserviceaccount.com",
+                  "FIREBASE_PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDDy1W7rU1zu2AL\nAM8cLh0FbxmjnpSAmhnBp3oDHp+xN80Q+vl0pqAzHZlxvkWOr8kfeo4iKyn10SRF\nIlXE8buaExA0w0/VbM/lPRI2oaUMHpO1qlErJsWauJXTsyCEsPZFlvVFzXpENvrX\n6qdUtnaGSaltS4dhdH0CG2PrQ+xGrvDk3VkQs8LJGYoavsvIgu2qFgsdGq7LZV0i\ng3oduyRJnUHuSsuS2lg0C7+N6UJqT/p5FxkgTzFDCGa27rEvh2PvCaxDkADdCMoz\nKJ29o1mUybVIVndORf+YsjywdWLy/fogFxNSSHctYdWnz6Pc4fl4euXlyM2LBA3k\nyCYDyGCzAgMBAAECggEAHjeq/yCThAmGnJwe2sAJLZYEdHqce66MzBTvYTzgM4cj\nqHu7dTPkJI9sZ6AQdyGNHkUZW4+i1bPV76+JYjBWnkRT63i7QPqeqUgAIBtZcCHl\n9RMYnNrKg4L6aKZMHf57u6i9KO058f40P4+RDKNubnI+6kXOWo2SX3lftecRN6Uy\nDrp2gK2JUQE/zKShGXGtZ7n6DIHXfvBTmcJ/RJug9xtxdPdFrBOtlozqm1niEj3d\nYK8+LoFBzBEHZus102IhV0xxitTg7JLAY6Nt+eWejTDCA2V2WdB5d5oVXsjfvEKI\nM9nfvt0225jM6RLfg48V5XPd6qc6qpp+qTZ+CuPiDQKBgQDqHIa89PRQLmn0G0tj\ncz+x5WFdgIW514PYX87nX6N/jXfZDZKTtx0weLp+EaPJvE29pjj9sM8UeUzm9qEi\nXJY/rdIXYoQvjkEaM9MODDNRX5GruhIXHKbF6nT24xlZFMwdjwYXUMajYMy7k6/b\n0/dK+wlhrWD10MeUG/gGed52xwKBgQDWGa9NtNxj2OwIGVURMC0agCS4LdcA9Isi\nRsJD7IbKl9DPCDXawjRmaBjsiaKqX4X/3OMsL0PD6mzI/NEZ+iLLZ7Tr860tImTn\nGbmFYjOeMDMb/YTIsVD7/2ungL1HolRShx4UeY3uwmDfxGCPhNU7esD+at7X2HpT\nwCcr0TBqtQKBgQCU1CO39kVmv8rtu3hWtcqVTkxyg6T/uwl/QZEoN/2Zthatrtoy\n++MbkHSGdrJYKlSFryll5cQPsPl5juprDM8blmYMJb4A+X9bp/yRXqI1JftWX4jm\nlnlTMrS+yyqvHfCRDf6CTgCpln0w9jeDGaKJUUPqi60rOFnYR1uKymjpuwKBgQCJ\n7HP1QDz2CalMMl2NvBZiSwjcqZMnZ2I2S5UcQsQ2wQRgSu6+pXsyOX9M6gGjdfQR\n909ViIFENcGs3MkrzesaVA3GLu1x9QVBp13PYorULkLOlkwzKZ99J3dHqfTFr/pY\nS/kBwajAlfHoVU7LRgxDy/mGLHywWiG70D6ryJBDPQKBgEaHt5WLi6jng9ukL7j0\np0PuxOvrJMaDCtKkwHsAkhpKTxPpYAjJE10lL7q6JSRpk1gfxI0ScOH881zevjrT\nQxrfZkbbdFO1LKkbA3p3M5va8YoOu1/w7kfRwwSM9cRhRHqsS0fiLq3mdFL8mf+C\nkxFo77GiIyuMik5idASFNpSf\n-----END PRIVATE KEY-----\n",
+                  "PAYU_MERCHANT_KEY": "OUzBZQ",
+                  "PAYU_SALT": "luqn4DGBYHWqVu1yQrZFyEA8vOsgvitY",
+                  "PAYU_CLIENT_ID": "05d3b31aba22d43cd4981b062b2fab8929b25ff4485ac087bcefaf6f0f3f0da6",
+                  "PAYU_CLIENT_SECRET": "fb6b34e8f5893a4a8cddc07e5c68cede87ae9a439027fa502ee9cfa9703bab84",
+                  "PAYU_URL": "https://test.payu.in/_payment",
+                  "FRONTEND_URL": "http://localhost:5173",
+                  "BACKEND_URL": "http://localhost:5001",
+                  "GMAIL_USER": "weardynamitehub@gmail.com",
+                  "GMAIL_APP_PASSWORD": "sslt igva aohs cskh",
+                  "NODE_OPTIONS": "--enable-source-maps"
                 }
               },
               "Role": {
@@ -204,14 +165,14 @@
               "ApiLogGroup"
             ]
           },
-          "ApiLambdaVersiont2Ct93ZBsTPaEjSEBtShdX0TBjFqkoFllcxpGx3rg": {
+          "ApiLambdaVersionwSfIXaWkDk8njjcMQ20eF4PVwUtjMMJT3Z8pd64Rers": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "ApiLambdaFunction"
               },
-              "CodeSha256": "QMONKAb9BrnfUWF8UWcHEro45+RVABXKEpPE/UXj5bA="
+              "CodeSha256": "jfxW06TzZyFrF5EYq+5q9+99Dmuy960E3qTGnJd7dWw="
             }
           },
           "HttpApi": {
@@ -309,9 +270,7 @@
         },
         "Outputs": {
           "ServerlessDeploymentBucketName": {
-            "Value": {
-              "Ref": "ServerlessDeploymentBucket"
-            },
+            "Value": "serverless-framework-deployments-ap-south-1-ca89df64-a1c3",
             "Export": {
               "Name": "sls-weardynamite-backend-dev-ServerlessDeploymentBucketName"
             }
@@ -319,7 +278,7 @@
           "ApiLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "ApiLambdaVersiont2Ct93ZBsTPaEjSEBtShdX0TBjFqkoFllcxpGx3rg"
+              "Ref": "ApiLambdaVersionwSfIXaWkDk8njjcMQ20eF4PVwUtjMMJT3Z8pd64Rers"
             },
             "Export": {
               "Name": "sls-weardynamite-backend-dev-ApiLambdaFunctionQualifiedArn"
@@ -361,92 +320,19 @@
           }
         }
       },
-      "coreCloudFormationTemplate": {
-        "AWSTemplateFormatVersion": "2010-09-09",
-        "Description": "The AWS CloudFormation template for this Serverless application",
-        "Resources": {
-          "ServerlessDeploymentBucket": {
-            "Type": "AWS::S3::Bucket",
-            "Properties": {
-              "BucketEncryption": {
-                "ServerSideEncryptionConfiguration": [
-                  {
-                    "ServerSideEncryptionByDefault": {
-                      "SSEAlgorithm": "AES256"
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          "ServerlessDeploymentBucketPolicy": {
-            "Type": "AWS::S3::BucketPolicy",
-            "Properties": {
-              "Bucket": {
-                "Ref": "ServerlessDeploymentBucket"
-              },
-              "PolicyDocument": {
-                "Statement": [
-                  {
-                    "Action": "s3:*",
-                    "Effect": "Deny",
-                    "Principal": "*",
-                    "Resource": [
-                      {
-                        "Fn::Join": [
-                          "",
-                          [
-                            "arn:",
-                            {
-                              "Ref": "AWS::Partition"
-                            },
-                            ":s3:::",
-                            {
-                              "Ref": "ServerlessDeploymentBucket"
-                            },
-                            "/*"
-                          ]
-                        ]
-                      },
-                      {
-                        "Fn::Join": [
-                          "",
-                          [
-                            "arn:",
-                            {
-                              "Ref": "AWS::Partition"
-                            },
-                            ":s3:::",
-                            {
-                              "Ref": "ServerlessDeploymentBucket"
-                            }
-                          ]
-                        ]
-                      }
-                    ],
-                    "Condition": {
-                      "Bool": {
-                        "aws:SecureTransport": false
-                      }
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        },
-        "Outputs": {
-          "ServerlessDeploymentBucketName": {
-            "Value": {
-              "Ref": "ServerlessDeploymentBucket"
-            }
-          }
-        }
-      },
       "vpc": {}
     },
+    "custom": {
+      "dotenv": {
+        "exclude": [
+          "AWS_ACCESS_KEY_ID",
+          "AWS_SECRET_ACCESS_KEY",
+          "AWS_REGION"
+        ]
+      }
+    },
     "plugins": [
-      "serverless-plugin-typescript"
+      "serverless-dotenv-plugin"
     ],
     "pluginsData": {},
     "functions": {
@@ -462,26 +348,26 @@
           }
         ],
         "name": "weardynamite-backend-dev-api",
-        "package": {
-          "exclude": [
-            "node_modules/serverless-plugin-typescript"
-          ],
-          "include": [],
-          "patterns": []
+        "environment": {
+          "NODE_OPTIONS": "--enable-source-maps"
         },
-        "memory": 512,
-        "timeout": 10,
+        "package": {},
+        "memory": 1024,
+        "timeout": 29,
         "runtime": "nodejs20.x",
         "vpc": {},
-        "versionLogicalId": "ApiLambdaVersiont2Ct93ZBsTPaEjSEBtShdX0TBjFqkoFllcxpGx3rg"
+        "versionLogicalId": "ApiLambdaVersionwSfIXaWkDk8njjcMQ20eF4PVwUtjMMJT3Z8pd64Rers"
       }
     },
     "configValidationMode": "warn",
-    "serviceFilename": "serverless.yml",
+    "serviceFilename": "serverless",
     "initialServerlessConfig": {
       "service": "weardynamite-backend",
       "provider": {
         "$ref": "$[\"service\"][\"provider\"]"
+      },
+      "custom": {
+        "$ref": "$[\"service\"][\"custom\"]"
       },
       "plugins": {
         "$ref": "$[\"service\"][\"plugins\"]"
@@ -490,12 +376,12 @@
         "$ref": "$[\"service\"][\"functions\"]"
       }
     },
-    "layers": {},
-    "isDashboardMonitoringPreconfigured": false,
-    "artifact": "H:\\weardynamite\\backend\\.build\\.serverless\\weardynamite-backend.zip"
+    "appId": null,
+    "orgId": null,
+    "layers": {}
   },
   "package": {
-    "artifactDirectoryName": "serverless/weardynamite-backend/dev/1775758012057-2026-04-09T18:06:52.057Z",
+    "artifactDirectoryName": "serverless/weardynamite-backend/dev/1775759797372-2026-04-09T18:36:37.372Z",
     "artifact": "weardynamite-backend.zip"
   }
 }
