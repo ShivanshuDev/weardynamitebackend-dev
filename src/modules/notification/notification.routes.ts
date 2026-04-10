@@ -10,4 +10,9 @@ router.post('/', NotificationController.createRequest);
 // Admin route to list notification requests
 router.get('/admin', authenticate as any, adminOnly as any, NotificationController.getRequests);
 
+// ─── Broadcast Management (Admin) ──────────────────────────────────────────
+
+router.post('/admin/broadcast', authenticate as any, adminOnly as any, NotificationController.createAndSendBroadcast);
+router.get('/admin/broadcast', authenticate as any, adminOnly as any, NotificationController.getBroadcastHistory);
+
 export default router;

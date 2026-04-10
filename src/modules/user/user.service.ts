@@ -30,28 +30,56 @@ export const updateProfile = async (userId: string, updates: {
   phoneSecondary?: string;
   dob?: string;
   interests?: string;
+  gender?: string;
 }) => {
   const current = await getProfile(userId);
   
   // No-Scan Indexing logic
-  let birthdayIndex = {};
+  let indexing = {};
+
+  // 1. Birthday Indexing (GSI5)
   if (updates.dob) {
     const dobDate = new Date(updates.dob);
     const mm = String(dobDate.getMonth() + 1).padStart(2, '0');
     const dd = String(dobDate.getDate()).padStart(2, '0');
-    birthdayIndex = {
+    indexing = {
+      ...indexing,
       birthday_mm_dd: `${mm}-${dd}`,
       GSI5PK: 'BIRTHDAY',
       GSI5SK: `${mm}-${dd}`
     };
   }
 
-  const updated = { ...current, ...updates, ...birthdayIndex };
+  // 2. Gender Indexing (GSI3 - NEW)
+  if (updates.gender) {
+    indexing = {
+      ...indexing,
+      GSI3PK: `GENDER#${updates.gender.toUpperCase()}`,
+      GSI3SK: `USER#${userId}`
+    };
+  }
+
+  const updated = { ...current, ...updates, ...indexing };
   await docClient.send(new PutCommand({
     TableName: MAIN_TABLE, 
     Item: { ...updated, PK: `USER#${userId}`, SK: 'PROFILE' }
   }));
   return updated;
+};
+
+/**
+ * Fetch users by gender without using SCANS (Highly Efficient)
+ */
+export const getUsersByGender = async (gender: string) => {
+  const { Items } = await docClient.send(new QueryCommand({
+    TableName: MAIN_TABLE,
+    IndexName: 'GSI3',
+    KeyConditionExpression: 'GSI3PK = :pk',
+    ExpressionAttributeValues: { 
+      ':pk': `GENDER#${gender.toUpperCase()}`
+    }
+  }));
+  return (Items || []).map(({ password, ...safe }) => safe);
 };
 
 export const getAddresses = async (userId: string) => {
@@ -117,6 +145,81 @@ export const updatePreferences = async (userId: string, prefs: { currency?: stri
     Item: { ...updated, PK: `USER#${userId}`, SK: 'PROFILE' }
   }));
   return updated;
+};
+
+// ─── Notification Inbox ──────────────────────────────────────────────────────
+
+export const saveUserNotification = async (userId: string, payload: {
+  title: string;
+  message: string;
+  type: string;
+  image?: string;
+  link?: string;
+  metadata?: any;
+}) => {
+  const notifId = uuidv4();
+  const now = Date.now();
+  
+  const record = {
+    PK: `USER#${userId}`,
+    SK: `NOTIF#${now}#${notifId}`,
+    entity_type: 'USER_NOTIF',
+    id: notifId,
+    ...payload,
+    isRead: false,
+    created_at: now
+  };
+
+  await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: record }));
+  return record;
+};
+
+export const listUserNotifications = async (userId: string, limit: number = 20) => {
+  const { Items } = await docClient.send(new QueryCommand({
+    TableName: MAIN_TABLE,
+    KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
+    ExpressionAttributeValues: { 
+      ':pk': `USER#${userId}`,
+      ':sk': 'NOTIF#'
+    },
+    ScanIndexForward: false, // Descending (Newest first)
+    Limit: limit
+  }));
+  return Items || [];
+};
+
+export const markNotificationRead = async (userId: string, notifId: string) => {
+  // First, find the specific SK since it has a timestamp
+  const all = await listUserNotifications(userId, 50);
+  const target = all.find(n => n.id === notifId || n.SK.includes(notifId));
+  
+  if (!target) return null;
+
+  await docClient.send(new UpdateCommand({
+    TableName: MAIN_TABLE,
+    Key: { PK: `USER#${userId}`, SK: target.SK },
+    UpdateExpression: 'SET isRead = :val',
+    ExpressionAttributeValues: { ':val': true }
+  }));
+  
+  return { ...target, isRead: true };
+};
+
+export const markAllNotificationsRead = async (userId: string) => {
+  const all = await listUserNotifications(userId, 50);
+  const unread = all.filter(n => !n.isRead);
+  
+  const promises = unread.map(n => 
+    docClient.send(new UpdateCommand({
+      TableName: MAIN_TABLE,
+      Key: { PK: `USER#${userId}`, SK: n.SK },
+      UpdateExpression: 'SET isRead = :val',
+      ExpressionAttributeValues: { ':val': true }
+    }))
+  );
+  
+  await Promise.allSettled(promises);
+  return { success: true };
 };
 
 // ─── Admin Users ─────────────────────────────────────────────────────────────

@@ -51,3 +51,18 @@ export const adminListUsers = async (req: AuthRequest, res: Response) => {
   try { res.json(await UserService.adminListUsers()); }
   catch (e: any) { res.status(400).json({ message: e.message }); }
 };
+
+export const getNotifications = async (req: AuthRequest, res: Response) => {
+  try { res.json(await UserService.listUserNotifications(req.user!.id)); }
+  catch (e: any) { res.status(400).json({ message: e.message }); }
+};
+
+export const markNotificationRead = async (req: AuthRequest, res: Response) => {
+  try { res.json(await UserService.markNotificationRead(req.user!.id, req.params.id)); }
+  catch (e: any) { res.status(400).json({ message: e.message }); }
+};
+
+export const markAllNotificationsRead = async (req: AuthRequest, res: Response) => {
+  try { res.json(await UserService.markAllNotificationsRead(req.user!.id)); }
+  catch (e: any) { res.status(400).json({ message: e.message }); }
+};

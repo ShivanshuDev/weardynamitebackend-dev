@@ -18,6 +18,10 @@ router.put('/addresses/:id', auth, UserController.updateAddress as any);
 router.delete('/addresses/:id', auth, UserController.deleteAddress as any);
 router.patch('/addresses/:id/default', auth, UserController.setDefaultAddress as any);
 
+router.get('/notifications', auth, UserController.getNotifications as any);
+router.patch('/notifications/:id/read', auth, UserController.markNotificationRead as any);
+router.post('/notifications/read-all', auth, UserController.markAllNotificationsRead as any);
+
 // ─── Admin ───────────────────────────────────────────────────────────────────
 router.get('/admin/users', auth, admin, UserController.adminListUsers as any);
 

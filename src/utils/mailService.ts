@@ -377,4 +377,62 @@ export class MailService {
       </div>
     `;
   }
+
+  static async sendCustomBroadcastEmail(to: string, name: string, title: string, body: string, image?: string, product?: any) {
+    const html = this.getCustomBroadcastTemplate(name, title, body, image, product);
+    const logPrefix = '[MAIL BROADCAST]';
+    
+    try {
+      await this.transporter.sendMail({
+        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.GMAIL_USER}>`,
+        to,
+        subject: title,
+        html,
+        attachments: [{
+          filename: 'logo.png',
+          path: path.join(process.cwd(), '../logo_concept_10_signature_thread_1774216216632.png'),
+          cid: 'brandlogo'
+        }]
+      });
+      console.log(`${logPrefix} Success: ${to}`);
+    } catch (error) {
+      console.error(`${logPrefix} Error:`, error);
+    }
+  }
+
+  private static getCustomBroadcastTemplate(name: string, title: string, body: string, image?: string, product?: any) {
+    const bannerUrl = image ? (image.startsWith('http') ? image : this.resolveImageUrl(image)) : null;
+    const productUrl = product ? `https://weardynamite.com/product/${product.product_id || product.id}` : null;
+
+    return `
+      <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 20px; overflow: hidden; background: #fff;">
+        <div style="background: #000; padding: 30px; text-align: center;">
+          <img src="cid:brandlogo" style="width: 120px;">
+        </div>
+        
+        ${bannerUrl ? `
+          <div style="width: 100%; height: 300px; overflow: hidden;">
+            <img src="${bannerUrl}" style="width: 100%; height: 100%; object-fit: cover;">
+          </div>
+        ` : ''}
+
+        <div style="padding: 40px;">
+          <h1 style="font-size: 26px; font-weight: 900; margin-bottom: 20px; color: #000; text-transform: uppercase; letter-spacing: -0.02em;">${title}</h1>
+          <p style="color: #444; line-height: 1.8; font-size: 16px;">Hi ${name},</p>
+          <p style="color: #444; line-height: 1.8; font-size: 16px;">${body}</p>
+          
+          ${product ? `
+            <div style="margin-top: 40px; padding: 25px; background: #f8fafc; border-radius: 15px; border: 1px solid #e2e8f0; text-align: center;">
+              <h3 style="margin: 0 0 10px 0; font-size: 18px; font-weight: 800;">Featured: ${product.product_name || product.name || 'Product'}</h3>
+              <a href="${productUrl}" style="display: inline-block; padding: 14px 30px; background: #000; color: #fff; text-decoration: none; border-radius: 50px; font-weight: 900; font-size: 14px; text-transform: uppercase; border: 2px solid #000; margin-top: 15px;">Shop Collection</a>
+            </div>
+          ` : ''}
+
+          <div style="margin-top: 40px; padding-top: 30px; border-top: 1px solid #eee; text-align: center;">
+            <p style="color: #94a3b8; font-size: 12px; margin: 0;">&copy; ${new Date().getFullYear()} WearDynamite. All rights reserved.</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
 }
