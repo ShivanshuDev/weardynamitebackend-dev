@@ -2,6 +2,8 @@ import { MailService } from './mailService';
 import { firebaseAdmin } from './firebaseAdmin';
 import { PDFService } from './pdfService';
 import { saveUserNotification } from '../modules/user/user.service';
+import { docClient, MAIN_TABLE } from './awsClient';
+import { GetCommand } from '@aws-sdk/lib-dynamodb';
 
 /**
  * NotificationService: Orchestrates multi-channel communications (Email + FCM)
@@ -225,25 +227,146 @@ export class NotificationService {
   }
 
   /**
-   * Generic FCM Push Helper
+   * Notify Admin about a new Bulk Lead
    */
-  private static async sendPush(token: string, payload: { title: string; body: string; image?: string; data?: any }) {
+  static async sendAdminInquiryNotification(inquiry: any) {
+    const adminId = 'MASTER-ADMIN';
+    
+    // 1. In-App Notification
+    await saveUserNotification(adminId, {
+      title: 'New Bulk Lead! 🔥',
+      message: `${inquiry.orgName} just submitted a ${inquiry.orderType} inquiry for ${inquiry.estimatedQty} units.`,
+      type: 'ADMIN_LEAD',
+      link: '/bulk-orders',
+      metadata: { inquiryId: inquiry.inquiryId, orgName: inquiry.orgName }
+    });
+
+    // 2. Email Notification
+    await MailService.sendBulkInquiryNotification(inquiry);
+
+    // 3. Push Notification (Fetch Token)
     try {
-      const message = {
+      const { Item: admin } = await docClient.send(new GetCommand({
+        TableName: MAIN_TABLE,
+        Key: { PK: `USER#${adminId}`, SK: 'PROFILE' }
+      }));
+      
+      if (admin?.fcmToken) {
+        await this.sendPush(admin.fcmToken, {
+          title: 'New Bulk Lead! 🔥',
+          body: `${inquiry.orgName} wants ${inquiry.estimatedQty} units of ${inquiry.orderType}.`,
+          data: { inquiryId: inquiry.inquiryId, type: 'admin_lead' }
+        });
+      }
+    } catch (e) {
+      console.error('[ADMIN PUSH ERROR]', e);
+    }
+  }
+
+  /**
+   * Notify Customer that their inquiry was received
+   */
+  static async sendCustomerInquiryConfirmation(userId: string, inquiry: any) {
+    // 1. In-App Notification
+    await saveUserNotification(userId, {
+      title: 'Inquiry Received! ⚡',
+      message: `We've received your inquiry for ${inquiry.orgName}. Our team will contact you shortly.`,
+      type: 'INQUIRY_RECEIVED',
+      link: '/profile/orders',
+      metadata: { inquiryId: inquiry.inquiryId }
+    });
+
+    // 2. Push Notification
+    try {
+      const { Item: user } = await docClient.send(new GetCommand({
+        TableName: MAIN_TABLE,
+        Key: { PK: `USER#${userId}`, SK: 'PROFILE' }
+      }));
+
+      if (user?.fcmToken) {
+        await this.sendPush(user.fcmToken, {
+          title: 'Inquiry Received! ⚡',
+          body: `Thanks for reaching out! We are reviewing your request for ${inquiry.orgName}.`,
+          data: { inquiryId: inquiry.inquiryId, type: 'inquiry_received' }
+        });
+      }
+    } catch (e) {
+      console.error('[CUSTOMER PUSH ERROR]', e);
+    }
+  }
+
+  /**
+   * Notify Customer about Inquiry Status Change
+   */
+  static async sendInquiryStatusUpdate(userId: string, inquiry: any, status: string) {
+    let title = 'Inquiry Update! ⚡';
+    let body = `The status of your inquiry for ${inquiry.orgName} has been updated to ${status}.`;
+    
+    switch (status.toUpperCase()) {
+      case 'WORKING':
+      case 'IN PROGRESS':
+        title = 'We\'re on it! 🛠️';
+        body = `Good news! We're now working on the proposal for ${inquiry.orgName}.`;
+        break;
+      case 'FINISHED':
+      case 'COMPLETED':
+        title = 'Proposal Ready! 🎉';
+        body = `The analysis for your ${inquiry.orgName} inquiry is complete. Check your history for details.`;
+        break;
+      case 'RETURNED':
+        title = 'Updates Needed 🔄';
+        body = `We need more information regarding your ${inquiry.orgName} inquiry.`;
+        break;
+    }
+
+    // 1. In-App Notification
+    await saveUserNotification(userId, {
+      title,
+      message: body,
+      type: 'INQUIRY_UPDATE',
+      link: '/profile/orders',
+      metadata: { inquiryId: inquiry.inquiryId, status }
+    });
+
+    // 2. Push Notification
+    try {
+      const { Item: user } = await docClient.send(new GetCommand({
+        TableName: MAIN_TABLE,
+        Key: { PK: `USER#${userId}`, SK: 'PROFILE' }
+      }));
+
+      if (user?.fcmToken) {
+        await this.sendPush(user.fcmToken, {
+          title,
+          body,
+          data: { inquiryId: inquiry.inquiryId, type: 'inquiry_status_update', status }
+        });
+      }
+    } catch (e) {
+      console.error('[CUSTOMER PUSH ERROR]', e);
+    }
+  }
+
+  /**
+   * Internal FCM dispatch
+   */
+  private static async sendPush(token: string, payload: { title: string; body: string; data?: any; image?: string }) {
+    try {
+      const message: any = {
+        token: token,
         notification: {
           title: payload.title,
           body: payload.body,
-          ...(payload.image ? { image: payload.image } : {})
+          image: payload.image
         },
-        data: payload.data || {},
-        token: token,
+        data: payload.data || {}
       };
 
       const response = await firebaseAdmin.messaging().send(message);
-      console.log('[FCM] Successfully sent message:', response);
       return response;
-    } catch (error) {
-      console.error('[FCM ERROR] Error sending push notification:', error);
+    } catch (error: any) {
+      console.error('[FCM ERROR]', error.message);
+      return null;
     }
   }
 }

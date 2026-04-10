@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthRequest } from '../../middleware/auth';
 import * as InquiryService from './inquiry.service';
 
 // Inquiries
@@ -17,6 +18,30 @@ export const deleteInquiry = async (req: Request, res: Response) => {
 
 export const getInquiryDetail = async (req: Request, res: Response) => {
   try { res.json(await InquiryService.getInquiryDetail(req.params.id as string)); } catch (e: any) { res.status(404).json({ message: e.message }); }
+};
+
+export const getBulkOrders = async (req: Request, res: Response) => {
+  try {
+    const params = {
+      status: req.query.status as string,
+      orderType: req.query.orderType as string,
+      lastKey: req.query.lastKey as string,
+      limit: req.query.limit ? parseInt(req.query.limit as string) : undefined
+    };
+    res.json(await InquiryService.listBulkOrders(params));
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+export const listMyInquiries = async (req: AuthRequest, res: Response) => {
+  try {
+    const email = req.user?.email;
+    if (!email) return res.status(401).json({ message: 'User email not found in token' });
+    res.json(await InquiryService.listInquiriesByUser(email));
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
 };
 
 // Subscribers

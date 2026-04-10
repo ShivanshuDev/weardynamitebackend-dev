@@ -302,91 +302,18 @@ export class MailService {
     `;
   }
 
-  private static getOrderStatusTemplate(name: string, order: any, status: string) {
-    let statusText = 'ORDER UPDATE.';
-    let message = `Hi ${name}, your order <strong>#${order.order_number}</strong> has a new update.`;
-    let accent = '#3b82f6'; // Default Blue
-
-    switch (status.toUpperCase()) {
-      case 'PROCESSING':
-        statusText = 'IN THE WORKS.';
-        message = `Hi ${name}, we are currently preparing your items for impact. Your order <strong>#${order.order_number}</strong> is being processed.`;
-        break;
-      case 'SHIPPED':
-        statusText = 'OUT FOR DELIVERY.';
-        message = `Hi ${name}, great news! Your order <strong>#${order.order_number}</strong> has been shipped and is on its way.`;
-        break;
-      case 'DELIVERED':
-        statusText = 'DELIVERED.';
-        message = `Hi ${name}, your WearDynamite package for order <strong>#${order.order_number}</strong> has been successfully delivered.`;
-        accent = '#10b981'; // Success Green
-        break;
-      case 'CANCELLED':
-        statusText = 'ORDER CANCELLED.';
-        message = `Hi ${name}, your order <strong>#${order.order_number}</strong> has been cancelled. If this was a mistake, please reach out to our support.`;
-        accent = '#ef4444'; // Danger Red
-        break;
-    }
-
-    return `
-      <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 20px; overflow: hidden; background: #fff;">
-        <div style="background: #000; padding: 40px; text-align: center;">
-          <img src="cid:brandlogo" style="width: 150px;">
-        </div>
-        <div style="padding: 40px;">
-          <h1 style="font-size: 24px; font-weight: 900; margin-bottom: 10px; color: ${accent};">${statusText}</h1>
-          <p style="color: #666; line-height: 1.6;">${message}</p>
-          ${order.tracking_number ? `<p style="margin-top: 20px; font-size: 14px; font-weight: 700;">Tracking ID: ${order.tracking_number}</p>` : ''}
-          <a href="https://weardynamite.com/profile/orders" style="display: inline-block; padding: 15px 30px; background: ${accent}; color: #fff; text-decoration: none; border-radius: 10px; font-weight: 900; font-size: 14px; text-transform: uppercase; margin-top: 20px;">View Order Details</a>
-        </div>
-      </div>
-    `;
-  }
-
-  private static getNewProductTemplate(name: string, product: any) {
-    const imageUrl = this.resolveImageUrl(product.image || product.images?.[0] || '');
-
-    return `
-      <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 20px; overflow: hidden; background: #fff;">
-        <div style="background: #000; padding: 20px; text-align: center;">
-          <img src="cid:brandlogo" style="width: 120px;">
-        </div>
-        <div style="position: relative;">
-          <img src="${imageUrl}" style="width: 100%; height: 400px; object-fit: cover;">
-          <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(0deg, rgba(0,0,0,0.8), transparent); padding: 40px; color: #fff;">
-             <h2 style="font-size: 28px; font-weight: 900; margin: 0; text-transform: uppercase;">${product.product_name}</h2>
-          </div>
-        </div>
-        <div style="padding: 40px; text-align: center;">
-          <p style="color: #666; line-height: 1.6; font-size: 16px;">The wait is over. Our latest drop is here and it's built for those who lead.</p>
-          <a href="https://weardynamite.com/product/${product.product_id}" style="display: inline-block; padding: 18px 40px; background: #FF5F1F; color: #fff; text-decoration: none; border-radius: 50px; font-weight: 900; font-size: 16px; text-transform: uppercase; margin-top: 20px;">Shop Now</a>
-        </div>
-      </div>
-    `;
-  }
-
-  private static getBirthdayTemplate(name: string) {
-    return `
-      <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 20px; overflow: hidden; background: #000; color: #fff;">
-        <div style="padding: 60px 40px; text-align: center;">
-          <div style="display: inline-block; padding: 10px 20px; border: 1px solid #FF5F1F; border-radius: 100px; color: #FF5F1F; font-size: 12px; font-weight: 900; margin-bottom: 20px;">IT'S YOUR DAY.</div>
-          <h1 style="font-size: 48px; font-weight: 900; margin: 0; letter-spacing: -2px;">HAPPY BIRTHDAY, <br>${name.toUpperCase()}</h1>
-          <p style="color: #666; margin-top: 20px; font-size: 18px;">To celebrate your existence, we've loaded a special surprise into your vault.</p>
-          <a href="https://weardynamite.com/shop" style="display: inline-block; padding: 18px 40px; background: #fff; color: #000; text-decoration: none; border-radius: 12px; font-weight: 900; font-size: 14px; text-transform: uppercase;">Claim Your Gift</a>
-        </div>
-      </div>
-    `;
-  }
-
-  static async sendCustomBroadcastEmail(to: string, name: string, title: string, body: string, image?: string, product?: any) {
-    const html = this.getCustomBroadcastTemplate(name, title, body, image, product);
-    const logPrefix = '[MAIL BROADCAST]';
+  /**
+   * Notify Admin about a new Bulk Order Lead.
+   */
+  static async sendBulkInquiryNotification(inquiry: any) {
+    const html = this.getBulkInquiryAdminTemplate(inquiry);
+    const subject = `🔥 NEW LEAD: ${inquiry.orgName} - ${inquiry.orderType || 'General'}`;
     
     try {
       await this.transporter.sendMail({
         from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.GMAIL_USER}>`,
-        to,
-        subject: title,
+        to: 'admin@weardynamite.com',
+        subject,
         html,
         attachments: [{
           filename: 'logo.png',
@@ -394,43 +321,152 @@ export class MailService {
           cid: 'brandlogo'
         }]
       });
-      console.log(`${logPrefix} Success: ${to}`);
+      console.log(`[MAIL NEW LEAD] Admin notified: ${inquiry.orgName}`);
     } catch (error) {
-      console.error(`${logPrefix} Error:`, error);
+      console.error('[MAIL NEW LEAD ERROR]', error);
     }
   }
 
-  private static getCustomBroadcastTemplate(name: string, title: string, body: string, image?: string, product?: any) {
-    const bannerUrl = image ? (image.startsWith('http') ? image : this.resolveImageUrl(image)) : null;
-    const productUrl = product ? `https://weardynamite.com/product/${product.product_id || product.id}` : null;
+  /**
+   * Send confirmation receipt to the Customer for their Inquiry.
+   */
+  static async sendInquiryConfirmation(to: string, name: string, inquiry: any) {
+    const html = this.getInquiryConfirmationTemplate(name, inquiry);
+    const subject = 'Inquiry Received - WearDynamite Custom ⚡';
 
+    try {
+      await this.transporter.sendMail({
+        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.GMAIL_USER}>`,
+        to,
+        subject,
+        html,
+        attachments: [{
+          filename: 'logo.png',
+          path: path.join(process.cwd(), '../logo_concept_10_signature_thread_1774216216632.png'),
+          cid: 'brandlogo'
+        }]
+      });
+      console.log(`[MAIL CONFIRMATION] Customer notified: ${to}`);
+    } catch (error) {
+      console.error('[MAIL CONFIRMATION ERROR]', error);
+    }
+  }
+
+  /**
+   * Notify Customer about Inquiry Status Update.
+   */
+  static async sendInquiryStatusEmail(to: string, name: string, inquiry: any, status: string) {
+    const html = this.getInquiryStatusUpdateTemplate(name, inquiry, status);
+    const subject = `Inquiry Update: ${inquiry.orgName} - ${status} ✨`;
+
+    try {
+      await this.transporter.sendMail({
+        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.GMAIL_USER}>`,
+        to,
+        subject,
+        html,
+        attachments: [{
+          filename: 'logo.png',
+          path: path.join(process.cwd(), '../logo_concept_10_signature_thread_1774216216632.png'),
+          cid: 'brandlogo'
+        }]
+      });
+      console.log(`[MAIL STATUS UPDATE] Customer notified: ${to} (Status: ${status})`);
+    } catch (error) {
+      console.error('[MAIL STATUS UPDATE ERROR]', error);
+    }
+  }
+
+  private static getBulkInquiryAdminTemplate(inquiry: any) {
     return `
       <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 20px; overflow: hidden; background: #fff;">
         <div style="background: #000; padding: 30px; text-align: center;">
           <img src="cid:brandlogo" style="width: 120px;">
         </div>
-        
-        ${bannerUrl ? `
-          <div style="width: 100%; height: 300px; overflow: hidden;">
-            <img src="${bannerUrl}" style="width: 100%; height: 100%; object-fit: cover;">
-          </div>
-        ` : ''}
-
         <div style="padding: 40px;">
-          <h1 style="font-size: 26px; font-weight: 900; margin-bottom: 20px; color: #000; text-transform: uppercase; letter-spacing: -0.02em;">${title}</h1>
-          <p style="color: #444; line-height: 1.8; font-size: 16px;">Hi ${name},</p>
-          <p style="color: #444; line-height: 1.8; font-size: 16px;">${body}</p>
-          
-          ${product ? `
-            <div style="margin-top: 40px; padding: 25px; background: #f8fafc; border-radius: 15px; border: 1px solid #e2e8f0; text-align: center;">
-              <h3 style="margin: 0 0 10px 0; font-size: 18px; font-weight: 800;">Featured: ${product.product_name || product.name || 'Product'}</h3>
-              <a href="${productUrl}" style="display: inline-block; padding: 14px 30px; background: #000; color: #fff; text-decoration: none; border-radius: 50px; font-weight: 900; font-size: 14px; text-transform: uppercase; border: 2px solid #000; margin-top: 15px;">Shop Collection</a>
-            </div>
-          ` : ''}
-
-          <div style="margin-top: 40px; padding-top: 30px; border-top: 1px solid #eee; text-align: center;">
-            <p style="color: #94a3b8; font-size: 12px; margin: 0;">&copy; ${new Date().getFullYear()} WearDynamite. All rights reserved.</p>
+          <h1 style="font-size: 24px; font-weight: 900; margin-bottom: 20px; color: #3b82f6; text-transform: uppercase;">New Bulk Lead</h1>
+          <div style="background: #f8fafc; padding: 30px; border-radius: 15px; border: 1px solid #e2e8f0; margin-bottom: 30px;">
+            <p style="margin: 0; font-size: 14px; color: #94a3b8; font-weight: 900; text-transform: uppercase;">Organization</p>
+            <p style="margin: 5px 0 20px 0; font-size: 22px; font-weight: 900; color: #000;">${inquiry.orgName}</p>
+            
+            <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 900; text-transform: uppercase;">Primary Contact</p>
+            <p style="margin: 5px 0 15px 0; font-size: 14px; font-weight: 700; color: #000;">${inquiry.fullName} (${inquiry.email})</p>
+            
+            <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 900; text-transform: uppercase;">Quantity / Type</p>
+            <p style="margin: 5px 0 15px 0; font-size: 14px; font-weight: 700; color: #000;">${inquiry.estimatedQty} Units | ${inquiry.orderType}</p>
+            
+            <p style="margin: 0; font-size: 12px; color: #94a3b8; font-weight: 900; text-transform: uppercase;">Requirements</p>
+            <p style="margin: 5px 0 0 0; font-size: 14px; line-height: 1.6; color: #475569;">${inquiry.message}</p>
           </div>
+          <a href="http://localhost:5174/bulk-orders" style="display: inline-block; padding: 18px 40px; background: #000; color: #fff; text-decoration: none; border-radius: 12px; font-weight: 900; font-size: 12px; text-transform: uppercase; tracking: 0.1em;">Review Lead in Dashboard</a>
+        </div>
+      </div>
+    `;
+  }
+
+  private static getInquiryConfirmationTemplate(name: string, inquiry: any) {
+    return `
+      <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; border: 2px solid #000; border-radius: 30px; overflow: hidden; background: #fff;">
+        <div style="background: #000; padding: 40px; text-align: center;">
+          <img src="cid:brandlogo" style="width: 150px;">
+        </div>
+        <div style="padding: 50px; text-align: center;">
+          <h1 style="font-size: 32px; font-weight: 900; color: #000; margin-bottom: 20px; text-transform: uppercase; letter-spacing: -1px;">We've Got You.</h1>
+          <p style="font-size: 18px; color: #444; line-height: 1.6; margin-bottom: 40px;">Hi ${name}, thank you for reaching out. Our bulk order specialists are currently analyzing your requirements for <strong>${inquiry.orgName}</strong>.</p>
+          
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; text-align: left; margin-bottom: 40px;">
+            <div style="padding: 20px; border: 1px solid #efefef; border-radius: 15px;">
+              <p style="font-size: 10px; font-weight: 900; color: #999; text-transform: uppercase; margin: 0;">Case ID</p>
+              <p style="font-size: 12px; font-weight: 700; color: #000; margin: 5px 0 0 0;">#${inquiry.inquiryId.slice(0, 8)}</p>
+            </div>
+            <div style="padding: 20px; border: 1px solid #efefef; border-radius: 15px;">
+              <p style="font-size: 10px; font-weight: 900; color: #999; text-transform: uppercase; margin: 0;">Lead Type</p>
+              <p style="font-size: 12px; font-weight: 700; color: #000; margin: 5px 0 0 0;">${inquiry.orderType?.toUpperCase()}</p>
+            </div>
+          </div>
+
+          <p style="font-size: 14px; color: #666; font-style: italic;">Expect a detailed quote and proposal in your inbox within 24 business hours.</p>
+          
+          <div style="margin-top: 50px; padding-top: 30px; border-top: 1px solid #eee;">
+             <p style="font-size: 10px; font-weight: 900; color: #999; text-transform: uppercase;">Team WearDynamite</p>
+          </div>
+        </div>
+      </div>
+      </div>
+    `;
+  }
+
+  private static getInquiryStatusUpdateTemplate(name: string, inquiry: any, status: string) {
+    let statusText = `The status of your inquiry has been updated to ${status}.`;
+    let subText = "Our team is currently processing your requirements.";
+    
+    if (status.toUpperCase() === 'WORKING' || status.toUpperCase() === 'IN PROGRESS') {
+      statusText = "We're currently working on your proposal.";
+      subText = "Our design and production leads are finalizing the details for your custom project.";
+    } else if (status.toUpperCase() === 'FINISHED' || status.toUpperCase() === 'COMPLETED') {
+      statusText = "Your proposal is ready for review.";
+      subText = "We've completed the analysis for your project. Please check your dashboard for the next steps.";
+    }
+
+    return `
+      <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 20px; overflow: hidden; background: #fff;">
+        <div style="background: #000; padding: 40px; text-align: center;">
+          <img src="cid:brandlogo" style="width: 150px;">
+        </div>
+        <div style="padding: 50px; text-align: center;">
+          <h1 style="font-size: 28px; font-weight: 900; color: #000; margin-bottom: 20px; text-transform: uppercase;">Status Updated.</h1>
+          <div style="display: inline-block; padding: 6px 14px; background: #3b82f6; color: #fff; border-radius: 100px; font-size: 11px; font-weight: 900; text-transform: uppercase; margin-bottom: 30px;">${status}</div>
+          
+          <p style="font-size: 18px; color: #000; font-weight: 700; margin-bottom: 10px;">Hi ${name},</p>
+          <p style="font-size: 16px; color: #444; line-height: 1.6; margin-bottom: 10px;">${statusText}</p>
+          <p style="font-size: 14px; color: #666; line-height: 1.6; margin-bottom: 30px;">${subText}</p>
+          
+          <div style="background: #f8fafc; padding: 20px; border-radius: 15px; text-align: left; margin-bottom: 40px;">
+            <p style="font-size: 10px; font-weight: 900; color: #94a3b8; text-transform: uppercase; margin: 0;">Organization</p>
+            <p style="font-size: 14px; font-weight: 700; color: #000; margin: 5px 0 0 0;">${inquiry.orgName}</p>
+          </div>
+
+          <a href="https://weardynamite.com/profile/orders" style="display: inline-block; padding: 18px 40px; background: #000; color: #fff; text-decoration: none; border-radius: 12px; font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em;">View Inquiry Progress</a>
         </div>
       </div>
     `;
