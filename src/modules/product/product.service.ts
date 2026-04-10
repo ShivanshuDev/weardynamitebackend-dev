@@ -44,6 +44,7 @@ export interface Product {
   codAvailable: boolean;
   codCouponApplicable: boolean;
   specs?: any[];
+  aboutThisItem?: string[];
   
   // Legacy or Internal mapping
   current_stock: number;
@@ -139,6 +140,7 @@ export const createProduct = async (
     seoDescription: data.seoDescription,
     urlHandle: data.urlHandle,
     specs: data.specs || [],
+    aboutThisItem: data.aboutThisItem || [],
 
     inventory_link: data.inventory_link,
     status: status,
@@ -383,7 +385,8 @@ export const updateProduct = async (
     'codAvailable',
     'codCouponApplicable',
     'isFreshArrival',
-    'isMostPopular'
+    'isMostPopular',
+    'aboutThisItem'
   ];
 
   const keys = Object.keys(updates).filter(k =>
