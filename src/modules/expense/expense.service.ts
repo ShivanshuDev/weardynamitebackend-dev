@@ -18,7 +18,7 @@ export const listExpenses = async (filters: { category?: string; dateFrom?: stri
   if (filters.dateFrom && filters.dateTo) {
     cmd.KeyConditionExpression = 'GSI1PK = :pk AND GSI1SK BETWEEN :d1 AND :d2';
     cmd.ExpressionAttributeValues[':d1'] = `DATE#${filters.dateFrom}`;
-    cmd.ExpressionAttributeValues[':d2'] = `DATE#${filters.dateTo}-Z`;
+    cmd.ExpressionAttributeValues[':d2'] = `DATE#${filters.dateTo}\uf8ff`; // \uf8ff ensures it captures all timestamps for that day
   }
 
   const { Items } = await docClient.send(new QueryCommand(cmd));
@@ -36,21 +36,27 @@ export const listExpenses = async (filters: { category?: string; dateFrom?: stri
  */
 export const createExpense = async (data: { description: string; category: string; amount: number; date?: string }) => {
   const id = uuidv4();
-  const expenseDate = data.date || Date.now();
-  const now = Date.now();
+  const now = new Date();
+  
+  // High-Precision Hybrid Timing: DATE#YYYY-MM-DD#TIMESTAMP
+  // This maintains backward compatibility with legacy YYYY-MM-DD queries
+  // while ensuring reverse-chronological sorting within the same day.
+  const dateStr = data.date || now.toISOString().split('T')[0];
+  const timestamp = now.getTime();
+  const gsi1sk = `DATE#${dateStr}#${timestamp}`;
   
   const record = {
     PK: `EXPENSE#${id}`,
     SK: 'EXPENSE',
     GSI1PK: 'EXPENSE',
-    GSI1SK: `DATE#${expenseDate}`,
+    GSI1SK: gsi1sk,
     GSI2PK: `CATEGORY#${data.category}`,
-    GSI2SK: `DATE#${expenseDate}`,
+    GSI2SK: gsi1sk,
     expenseId: id,
     ...data,
-    date: expenseDate,
+    date: timestamp, // Store numeric timestamp for easy frontend formatting
     status: 'Paid',
-    createdAt: now
+    createdAt: timestamp
   };
 
   await docClient.send(new PutCommand({
@@ -65,8 +71,10 @@ export const createExpense = async (data: { description: string; category: strin
   await addTransaction({
     description: `Operational Outflow: ${data.description} (${data.category})`,
     type: 'Debit',
+    category: data.category,
     amount: Number(data.amount),
-    date: expenseDate
+    date: expenseDateTs,
+    referenceId: id
   });
 
   return record;

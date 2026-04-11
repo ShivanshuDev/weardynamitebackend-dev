@@ -18,7 +18,7 @@ export const listTransactions = async (filters: { type?: string; dateFrom?: stri
   if (filters.dateFrom && filters.dateTo) {
     cmd.KeyConditionExpression = 'GSI1PK = :pk AND GSI1SK BETWEEN :d1 AND :d2';
     cmd.ExpressionAttributeValues[':d1'] = `DATE#${filters.dateFrom}`;
-    cmd.ExpressionAttributeValues[':d2'] = `DATE#${filters.dateTo}`;
+    cmd.ExpressionAttributeValues[':d2'] = `DATE#${filters.dateTo}\uf8ff`;
   }
 
   const { Items } = await docClient.send(new QueryCommand(cmd));
@@ -31,19 +31,36 @@ export const listTransactions = async (filters: { type?: string; dateFrom?: stri
   return result;
 };
 
-export const addTransaction = async (data: { description: string; type: 'Credit' | 'Debit'; category?: string; amount: number; referenceId?: string; date?: number }) => {
+export const addTransaction = async (data: { description: string; type: 'Credit' | 'Debit'; category?: string; amount: number; referenceId?: string; date?: number | string }) => {
   const id = uuidv4();
-  const date = data.date || Date.now();
+  const now = new Date();
+  
+  // High-Precision Hybrid Timing
+  let dateTs: number;
+  let dateStr: string;
+  
+  if (typeof data.date === 'number') {
+    dateTs = data.date;
+    dateStr = new Date(dateTs).toISOString().split('T')[0];
+  } else if (typeof data.date === 'string' && data.date.includes('-')) {
+    dateStr = data.date;
+    const selected = new Date(dateStr);
+    selected.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+    dateTs = selected.getTime();
+  } else {
+    dateTs = now.getTime();
+    dateStr = now.toISOString().split('T')[0];
+  }
   
   const ledgerRecord = {
     PK: `LEDGER#${id}`,
     SK: 'LEDGER',
     GSI1PK: 'LEDGER',
-    GSI1SK: `DATE#${date}`,
+    GSI1SK: `DATE#${dateStr}#${dateTs}`,
     ledgerId: id,
     ...data,
-    date,
-    createdAt: date
+    date: dateTs,
+    createdAt: dateTs
   };
 
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: ledgerRecord }));
@@ -52,13 +69,14 @@ export const addTransaction = async (data: { description: string; type: 'Credit'
 
 export const getDailySummary = async (date: string) => {
   // Retrieve Ledger Items up to target date (Query with Range instead of memory filter)
+  const targetDateTs = new Date(date).getTime();
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
     KeyConditionExpression: 'GSI1PK = :pk AND GSI1SK <= :date',
     ExpressionAttributeValues: { 
       ':pk': 'LEDGER',
-      ':date': `DATE#${new Date(date).getTime() + 86400000}` // Buffer one day for precision
+      ':date': `DATE#${date}\uf8ff`
     }
   }));
   
