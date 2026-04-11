@@ -17,11 +17,11 @@ export const listVendors = async (req: Request, res: Response) => {
  */
 export const createVendor = async (req: Request, res: Response) => {
   try {
-    const { name, contactPerson, email, phone, category, address } = req.body;
-    if (!name || !contactPerson || !email || !phone || !category) {
+    const { name, email, category } = req.body;
+    if (!name || !email || !category) {
       return res.status(400).json({ message: 'Missing mandatory fields for vendor onboarding.' });
     }
-    const record = await VendorService.createVendor({ name, contactPerson, email, phone, category, address });
+    const record = await VendorService.createVendor(req.body);
     res.status(201).json(record);
   } catch (error: any) {
     res.status(400).json({ message: error.message });
@@ -56,11 +56,12 @@ export const listVendorTransactions = async (req: Request, res: Response) => {
  */
 export const addVendorTransaction = async (req: Request, res: Response) => {
   try {
-    const { date, type, amount, description } = req.body;
-    if (!date || !type || amount === undefined || !description) {
-      return res.status(400).json({ message: 'Transaction Date, Type, Amount, and Description are mandatory.' });
+    const { type, amount, description } = req.body;
+    if (!type || amount === undefined || !description) {
+      return res.status(400).json({ message: 'Transaction Type, Amount, and Description are mandatory.' });
     }
-    const record = await VendorService.addVendorTransaction(req.params.id as string, { date, type, amount, description });
+    const date = req.body.date || Date.now();
+    const record = await VendorService.addVendorTransaction(req.params.id as string, { ...req.body, date });
     res.status(201).json(record);
   } catch (error: any) {
     res.status(400).json({ message: error.message });
