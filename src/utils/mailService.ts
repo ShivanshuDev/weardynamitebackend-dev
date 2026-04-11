@@ -1,5 +1,7 @@
 import nodemailer from 'nodemailer';
 import path from 'path';
+import PDFDocument from 'pdfkit';
+import axios from 'axios';
 
 /**
  * MailService: Handles high-fidelity, responsive communications for WearDynamite.
@@ -228,6 +230,149 @@ export class MailService {
     } catch (error) {
        console.error(`[MAIL ERROR] Failed product drop email to ${to}:`, error);
     }
+  }
+
+  /**
+   * Generates a premium Personnel Application Form PDF in-memory.
+   */
+  static async generatePersonnelPDF(employee: any): Promise<Buffer> {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const buffers: Buffer[] = [];
+    doc.on('data', (chunk) => buffers.push(chunk));
+    
+    return new Promise((resolve) => {
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+
+      // --- PDF CONTENT GENERATION ---
+      const primaryColor = '#000000';
+      const accentColor = '#3b82f6';
+      
+      // Header Section (Aggressively Compressed)
+      doc.rect(0, 0, 595.28, 90).fill(primaryColor);
+      doc.fillColor('#ffffff').fontSize(20).font('Helvetica-Bold').text('PERSONNEL APPLICATION FORM', 50, 30);
+      doc.fontSize(8.5).font('Helvetica').text('WEARDYNAMITE CLOTHING CO. | OFFICIAL COLLECTIVE RECORD', 50, 55, { letterSpacing: 2 });
+      
+      // ISSUED_ON / EMP_ID
+      doc.fontSize(8).text(`ISSUED_ON: ${new Date().toLocaleDateString()}`, 450, 32);
+      doc.fontSize(8).font('Helvetica-Bold').text(`EMP_ID: ${employee.employeeId || 'NEW'}`, 450, 45);
+
+      // Section 1: Identity & Profile
+      let y = 115;
+      doc.fillColor(primaryColor).fontSize(11).font('Helvetica-Bold').text('SECTION 01: IDENTITY & BACKGROUND', 50, y);
+      doc.rect(50, y + 14, 495, 1.2).fill(accentColor);
+      
+      y += 30;
+      const drawField = (label: string, value: string, x: number, y: number) => {
+        doc.fillColor('#64748b').fontSize(7).font('Helvetica-Bold').text(label.toUpperCase(), x, y);
+        doc.fillColor('#0f172a').fontSize(9.5).font('Helvetica-Bold').text(value || 'N/A', x, y + 9);
+      };
+
+      drawField('Full Legal Name', employee.name, 50, y);
+      drawField('Designation', employee.designation || employee.role, 300, y);
+      
+      y += 34;
+      drawField('Mother\'s Name', employee.motherName, 50, y);
+      drawField('Father\'s Name', employee.fatherName, 300, y);
+      
+      y += 34;
+      drawField('Marital Status', employee.maritalStatus, 50, y);
+      if (employee.maritalStatus === 'Married') drawField('Spouse Name', employee.spouseName, 300, y);
+      
+      y += 34;
+      drawField('Blood Group', employee.bloodGroup, 50, y);
+      drawField('Contact Number', employee.phone, 300, y);
+
+      y += 34;
+      doc.fillColor('#64748b').fontSize(7).font('Helvetica-Bold').text('RESIDENTIAL ADDRESS', 50, y);
+      doc.fillColor('#0f172a').fontSize(9).font('Helvetica').text(employee.address || 'N/A', 50, y + 9, { width: 495, lineGap: 1.5 });
+
+      // Section 2: Professional Profile
+      y += 50;
+      doc.fillColor(primaryColor).fontSize(11).font('Helvetica-Bold').text('SECTION 02: PROFESSIONAL PROFILE', 50, y);
+      doc.rect(50, y + 14, 495, 1.2).fill(accentColor);
+      
+      y += 30;
+      drawField('Employee Type', employee.employeeType, 50, y);
+      drawField('Joining Date', employee.joinDate, 300, y);
+      
+      y += 34;
+      drawField('Exp Level', employee.experienceLevel, 50, y);
+      drawField('Years of Exp', employee.experienceYears?.toString(), 300, y);
+
+      y += 34;
+      drawField('Official Email', employee.email, 50, y);
+      drawField('Monthly CTC (INR)', `RS. ${employee.salary?.toLocaleString()}/-`, 300, y);
+
+      // Section 3: Digital KYC
+      y += 50;
+      doc.fillColor(primaryColor).fontSize(11).font('Helvetica-Bold').text('SECTION 03: DIGITAL KYC REGISTRY', 50, y);
+      doc.rect(50, y + 14, 495, 1.2).fill(accentColor);
+      
+      y += 30;
+      drawField('Aadhaar Number', employee.aadharNumber, 50, y);
+      drawField('PAN Card Number', employee.panNumber, 300, y);
+      
+      y += 34;
+      drawField('Driving License', employee.drivingLicense, 50, y);
+
+      // Footer
+      doc.rect(0, 790, 595.28, 51.89).fill('#f8fafc');
+      doc.fillColor('#64748b').fontSize(7).text('THIS IS A SYSTEM GENERATED DOCUMENT CREATED BY WEARDYNAMITE WORKFORCE HUB.', 50, 805, { align: 'center' });
+      doc.text('ALL DATA IS SECURELY STORED IN THE DYNAMITE COLLECTIVE VAULT. UNAUTHORIZED SHARING IS PROHIBITED.', 50, 815, { align: 'center' });
+
+      doc.end();
+    });
+  }
+
+  /**
+   * Generates a premium Personnel Application Form PDF and dispatches it via email.
+   */
+  static async sendOnboardingWelcomeEmail(to: string, employee: any) {
+    try {
+      const pdfBuffer = await this.generatePersonnelPDF(employee);
+      const html = this.getOnboardingWelcomeTemplate(employee.name);
+      const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+
+      await this.transporter.sendMail({
+        from: `"WearDynamite Personnel" <${process.env.GMAIL_USER}>`,
+        to,
+        subject: 'Official Onboarding Confirmation - Personnel Vault 🔥',
+        html,
+        attachments: [
+          { filename: 'logo.png', path: logoPath, cid: 'brandlogo' },
+          { filename: `Personnel_Form_${employee.name.replace(/\s+/g, '_')}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }
+        ],
+      });
+      console.log(`[MAIL SUCCESS] Onboarding document sent to: ${to}`);
+      return { success: true };
+    } catch (error) {
+      console.error(`[MAIL ERROR] Failed onboarding email to ${to}:`, error);
+      throw error;
+    }
+  }
+
+  private static getOnboardingWelcomeTemplate(name: string) {
+    return `
+      <div style="font-family: 'Inter', Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 40px;">
+        <div style="max-width: 600px; margin: auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.05); border: 1px solid #edf2f7;">
+          <div style="background: black; padding: 40px; text-align: center;">
+            <img src="cid:brandlogo" style="width: 150px;">
+          </div>
+          <div style="padding: 50px;">
+            <h1 style="font-size: 28px; font-weight: 900; margin-bottom: 20px; color: #000; text-transform: uppercase; letter-spacing: -1px;">You're part of the Collective.</h1>
+            <p style="font-size: 16px; color: #4a5568; line-height: 1.8; margin-bottom: 30px;">Hi <strong>${name}</strong>, welcome to WearDynamite. Your onboarding to our administrative vault is now complete.</p>
+            <div style="background: #f1f5f9; padding: 25px; border-radius: 15px; border-left: 5px solid #3b82f6;">
+              <p style="margin: 0; font-size: 13px; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Attachment Included</p>
+              <p style="margin: 5px 0 0 0; font-size: 15px; color: #1e293b; font-weight: 700;">Personnel Application Form (PDF)</p>
+            </div>
+            <p style="font-size: 14px; color: #718096; line-height: 1.8; margin-top: 30px;">Attached to this email is your official personnel record. Please review the details for accuracy. This document serves as your official application confirmation for WearDynamite Registry.</p>
+          </div>
+          <div style="padding: 40px; background: #000; color: white; text-align: center; border-top: 1px solid #eee;">
+             <p style="font-size: 10px; font-weight: 900; text-transform: uppercase;">Institutional Grade Luxury Streetwear</p>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   /**

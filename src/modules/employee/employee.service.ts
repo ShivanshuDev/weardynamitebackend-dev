@@ -15,8 +15,20 @@ export const listEmployees = async () => {
   return Items || [];
 };
 
+const getNextSequenceValue = async (counterId: string) => {
+  const { Attributes } = await docClient.send(new UpdateCommand({
+    TableName: MAIN_TABLE,
+    Key: { PK: 'METADATA', SK: `SEQUENCE#${counterId}` },
+    UpdateExpression: 'ADD current_value :inc',
+    ExpressionAttributeValues: { ':inc': 1 },
+    ReturnValues: 'ALL_NEW'
+  }));
+  return Attributes?.current_value || 1;
+};
+
 export const createEmployee = async (data: Record<string, any>) => {
-  const id = uuidv4();
+  const seq = await getNextSequenceValue('EMPLOYEE');
+  const id = `WDTH${String(seq).padStart(6, '0')}`;
   const now = Date.now();
   
   const record = {
@@ -63,14 +75,23 @@ export const deleteEmployee = async (id: string) => {
   return { message: 'Employee removed' };
 };
 
+export const getEmployee = async (id: string) => {
+  const { Item } = await docClient.send(new GetCommand({ TableName: MAIN_TABLE, Key: { PK: `EMPLOYEE#${id}`, SK: 'EMPLOYEE' } }));
+  return Item;
+};
+
 // ─── Attendance ────────────────────────────────────────────────────────────────
 
 export const getAttendanceByDate = async (date: string) => {
+  const [year, month] = date.split('-');
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
     KeyConditionExpression: 'GSI1PK = :pk AND begins_with(GSI1SK, :sk)',
-    ExpressionAttributeValues: { ':pk': `DATE#${date}`, ':sk': 'EMP#' }
+    ExpressionAttributeValues: { 
+      ':pk': `ORG#DYNAMITE#ATT#${year}-${month}`, 
+      ':sk': `DATE#${date}` 
+    }
   }));
   return Items || [];
 };
@@ -89,7 +110,7 @@ export const markAttendance = async (data: {
   }));
 
   if (existing) {
-    // Create audit log before override
+    // Audit Trail
     await docClient.send(new PutCommand({
       TableName: MAIN_TABLE,
       Item: {
@@ -106,17 +127,29 @@ export const markAttendance = async (data: {
     }));
   }
 
+  const [year, month] = data.date.split('-');
   const record = {
     PK: `EMPLOYEE#${data.employeeId}`,
     SK: `ATTENDANCE#${data.date}`,
-    GSI1PK: `DATE#${data.date}`,
-    GSI1SK: `EMP#${data.employeeId}`,
+    GSI1PK: `ORG#DYNAMITE#ATT#${year}-${month}`,
+    GSI1SK: `DATE#${data.date}#EMP#${data.employeeId}`,
     ...data,
-    createdAt: Date.now()
+    updatedAt: Date.now(),
+    createdAt: existing?.createdAt || Date.now()
   };
 
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: record }));
   return record;
+};
+
+export const getAttendanceMatrix = async (year: string, month: string) => {
+  const { Items } = await docClient.send(new QueryCommand({
+    TableName: MAIN_TABLE,
+    IndexName: 'GSI1',
+    KeyConditionExpression: 'GSI1PK = :pk',
+    ExpressionAttributeValues: { ':pk': `ORG#DYNAMITE#ATT#${year}-${month}` }
+  }));
+  return Items || [];
 };
 
 export const getEmployeeAttendanceHistory = async (employeeId: string) => {

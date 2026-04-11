@@ -12,9 +12,12 @@ router.post('/employees', auth, admin, EC.createEmployee);
 router.put('/employees/:id', auth, admin, EC.updateEmployee);
 router.patch('/employees/:id/status', auth, admin, EC.patchEmployeeStatus);
 router.delete('/employees/:id', auth, admin, EC.deleteEmployee);
+router.post('/employees/:id/send-welcome', auth, admin, EC.sendWelcomeEmail);
+router.get('/employees/:id/download-form', auth, admin, EC.downloadPersonnelForm);
 
 // Attendance
 router.get('/attendance', auth, admin, EC.getAttendanceByDate);
+router.get('/attendance/matrix', auth, admin, EC.getAttendanceMatrix);
 router.post('/attendance', auth, admin, EC.markAttendance);
 router.put('/attendance/:employeeId/:date', auth, admin, EC.editAttendance);
 router.get('/attendance/:employeeId/history', auth, admin, EC.getEmployeeAttendanceHistory);
