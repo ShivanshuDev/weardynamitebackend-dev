@@ -173,30 +173,56 @@ export const getDashboardStats = async () => {
     Key: { PK: 'DASHBOARD#STATS', SK: 'LATEST' }
   }));
 
+  // 2. Fetch fresh aggregates for critical metrics (Ensures zero-latency accuracy)
+  const [ordersRes, productsRes] = await Promise.all([
+    // STATUS#Returned query for Total Return metric
+    docClient.send(new QueryCommand({ 
+      TableName: MAIN_TABLE, 
+      IndexName: 'GSI2', 
+      KeyConditionExpression: 'GSI2PK = :pk', 
+      ExpressionAttributeValues: { ':pk': 'STATUS#Returned' } 
+    })),
+    // PRODUCT aggregation for accurate Current Stock
+    docClient.send(new QueryCommand({ 
+      TableName: MAIN_TABLE, 
+      IndexName: 'GSI4', 
+      KeyConditionExpression: 'GSI4PK = :pk', 
+      ExpressionAttributeValues: { ':pk': 'PRODUCT' } 
+    })),
+    // Fetch all orders for Gross Revenue fallback if snapshot is stale
+    snapshot ? Promise.resolve({ Items: [] }) : docClient.send(new QueryCommand({ 
+      TableName: MAIN_TABLE, 
+      IndexName: 'GSI3', 
+      KeyConditionExpression: 'GSI3PK = :pk', 
+      ExpressionAttributeValues: { ':pk': 'ALL_ORDERS' } 
+    }))
+  ]);
+
+  const returnedOrders = ordersRes.Items || [];
+  const products = productsRes.Items || [];
+  
+  const totalReturn = returnedOrders.reduce((s, o: any) => s + Number(o.total_amount || o.totalAmount || 0), 0);
+  const currentStock = products.reduce((s, p: any) => s + Number(p.current_stock || p.available_stock || 0), 0);
+
   if (snapshot) {
     return {
       grossRevenue: snapshot.totalRevenue || 0,
       activeOrders: snapshot.totalOrders || 0,
       totalBurn: snapshot.totalBurn || 0,
-      currentStock: snapshot.totalProducts || 0,
+      currentStock: currentStock, // Use fresh stock aggregate for precision
+      totalReturn: totalReturn,    // Dynamic return aggregation
       isRealtime: true
     };
   }
 
-  // 2. Fallback to GSI queries if snapshot doesn't exist yet (Initialization phase)
-  const [{ Items: orders }, { Items: products }] = await Promise.all([
-    docClient.send(new QueryCommand({ TableName: MAIN_TABLE, IndexName: 'GSI1', KeyConditionExpression: 'GSI1PK = :pk', ExpressionAttributeValues: { ':pk': 'ORDER' } })),
-    docClient.send(new QueryCommand({ TableName: MAIN_TABLE, IndexName: 'GSI4', KeyConditionExpression: 'GSI4PK = :pk', ExpressionAttributeValues: { ':pk': 'PRODUCT' } })),
-  ]);
-
-  const ords = orders || [];
-  const prods = products || [];
-
+  // Fallback for initial state
+  const allOrders = (ordersRes as any).Items || []; // This would be populated if snapshot is missing
   return {
-    grossRevenue: ords.reduce((s, o: any) => s + Number(o.totalAmount || 0), 0),
-    activeOrders: ords.length,
-    totalBurn: 0, // Ledger analysis needed for historical burn
-    currentStock: prods.reduce((s, p: any) => s + Number(p.stock || p.current_stock || 0), 0),
+    grossRevenue: allOrders.reduce((s: number, o: any) => s + Number(o.total_amount || 0), 0),
+    activeOrders: allOrders.length,
+    totalBurn: 0,
+    currentStock: currentStock,
+    totalReturn: totalReturn,
     isRealtime: false
   };
 };

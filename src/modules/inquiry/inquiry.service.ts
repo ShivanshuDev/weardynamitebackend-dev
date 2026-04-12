@@ -236,18 +236,18 @@ export const unsubscribe = async (email: string) => {
 };
 
 export const listInquiriesByUser = async (email: string) => {
-  // Ultra-robust retrieval: Scan with FilterExpression to ensure items are found
-  // regardless of GSI provisioning or PK type (BULK_ORDER vs INQUIRY)
-  const { Items } = await docClient.send(new ScanCommand({
+  // Enforcing strict 'No Scan' policy: Use GSI4 for high-performance inquiry lookup
+  const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
-    FilterExpression: 'email = :email',
+    IndexName: 'GSI4',
+    KeyConditionExpression: 'GSI4PK = :pk',
     ExpressionAttributeValues: { 
-      ':email': email
+      ':pk': `USER_INQUIRY#${email.toLowerCase()}`
     }
   }));
   
-  // Sort by date manually for now as Scan is unordered
-  return (Items || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  // High-precision chronological sorting (fallback if GSI SK is not primary sort)
+  return (Items || []).sort((a, b) => (Number(b.createdAt || 0)) - (Number(a.createdAt || 0)));
 };
 
 export const exportSubscribersCSV = () => {
