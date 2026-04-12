@@ -15,12 +15,17 @@ export class MailService {
     },
   });
 
+  private static getSignatureLogoPath() {
+    // Return absolute path to the signature logo relative to this file
+    return path.resolve(__dirname, '..', '..', '..', 'logo_concept_10_signature_thread_1774216216632.png');
+  }
+
   /**
    * Sends a colorful, responsive Welcome Email with the WearDynamite logo.
    */
   static async sendWelcomeEmail(to: string, name: string) {
     const html = this.getWelcomeTemplate(name);
-    const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+    const logoPath = this.getSignatureLogoPath();
 
     try {
       await this.transporter.sendMail({
@@ -94,7 +99,7 @@ export class MailService {
    */
   static async sendSubscriptionConfirmation(to: string, name: string) {
     const html = this.getSubscriptionTemplate(name);
-    const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+    const logoPath = this.getSignatureLogoPath();
 
     try {
       await this.transporter.sendMail({
@@ -165,7 +170,7 @@ export class MailService {
    */
   static async sendOrderConfirmedEmail(to: string, name: string, order: any, items: any[], pdfBuffer?: Buffer) {
     const html = this.getOrderConfirmedTemplate(name, order, items);
-    const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+    const logoPath = this.getSignatureLogoPath();
 
     const attachments: any[] = [{ filename: 'logo.png', path: logoPath, cid: 'brandlogo' }];
     if (pdfBuffer) {
@@ -195,7 +200,7 @@ export class MailService {
    */
   static async sendOrderStatusEmail(to: string, name: string, order: any, status: string) {
     const html = this.getOrderStatusTemplate(name, order, status);
-    const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+    const logoPath = this.getSignatureLogoPath();
 
     try {
       await this.transporter.sendMail({
@@ -216,7 +221,7 @@ export class MailService {
    */
   static async sendNewProductEmail(to: string, name: string, product: any) {
     const html = this.getNewProductTemplate(name, product);
-    const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+    const logoPath = this.getSignatureLogoPath();
 
     try {
       await this.transporter.sendMail({
@@ -331,7 +336,7 @@ export class MailService {
     try {
       const pdfBuffer = await this.generatePersonnelPDF(employee);
       const html = this.getOnboardingWelcomeTemplate(employee.name);
-      const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+      const logoPath = this.getSignatureLogoPath();
 
       await this.transporter.sendMail({
         from: `"WearDynamite Personnel" <${process.env.GMAIL_USER}>`,
@@ -380,7 +385,7 @@ export class MailService {
    */
   static async sendBirthdayEmail(to: string, name: string) {
     const html = this.getBirthdayTemplate(name);
-    const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+    const logoPath = this.getSignatureLogoPath();
 
     try {
       await this.transporter.sendMail({
@@ -411,7 +416,7 @@ export class MailService {
    */
   static async sendPayrollPaymentEmail(to: string, name: string, data: any) {
     const html = this.getPayrollPaymentTemplate(name, data);
-    const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+    const logoPath = this.getSignatureLogoPath();
 
     try {
       await this.transporter.sendMail({
@@ -432,7 +437,7 @@ export class MailService {
    */
   static async sendPayrollLedgerEmail(to: string, name: string, records: any[]) {
     const html = this.getPayrollLedgerTemplate(name, records);
-    const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+    const logoPath = this.getSignatureLogoPath();
 
     try {
       await this.transporter.sendMail({
@@ -453,16 +458,19 @@ export class MailService {
    */
   static async sendCustomBroadcastEmail(to: string, name: string, title: string, body: string, image?: string, product?: any) {
     const html = this.getCustomBroadcastTemplate(name, title, body, image, product);
-    const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+    const logoPath = this.getSignatureLogoPath();
+
+    console.log(`[MAIL BROADCAST] Attempting dispatch to: ${to}`);
 
     try {
-      await this.transporter.sendMail({
+      const info = await this.transporter.sendMail({
         from: `"WearDynamite" <${process.env.GMAIL_USER}>`,
         to,
         subject: `${title} 🔥`,
         html,
         attachments: [{ filename: 'logo.png', path: logoPath, cid: 'brandlogo' }],
       });
+      console.log(`[MAIL SUCCESS] Custom broadcast sent to: ${to} (MessageID: ${info.messageId})`);
       return { success: true };
     } catch (error) {
       console.error(`[MAIL ERROR] Failed custom broadcast to ${to}:`, error);
@@ -631,7 +639,7 @@ export class MailService {
         html,
         attachments: [{
           filename: 'logo.png',
-          path: path.join(process.cwd(), '../logo_concept_10_signature_thread_1774216216632.png'),
+          path: this.getSignatureLogoPath(),
           cid: 'brandlogo'
         }]
       });
@@ -656,7 +664,7 @@ export class MailService {
         html,
         attachments: [{
           filename: 'logo.png',
-          path: path.join(process.cwd(), '../logo_concept_10_signature_thread_1774216216632.png'),
+          path: this.getSignatureLogoPath(),
           cid: 'brandlogo'
         }]
       });

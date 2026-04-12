@@ -2,8 +2,8 @@ import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 import { PutCommand, QueryCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { NotificationService } from '../../utils/notificationService';
-import { getUsersByGender } from '../user/user.service';
-import { adminListUsers } from '../user/user.service';
+import { getUsersByGender, adminListUsers, getUserByEmail, getProfile } from '../user/user.service';
+import { listEmployees } from '../employee/employee.service';
 
 export interface NotificationCampaign {
   PK: string;
@@ -13,7 +13,7 @@ export interface NotificationCampaign {
   message: string;
   imageUrl?: string;
   product?: any;
-  targetType: 'all' | 'gender' | 'single';
+  targetType: 'all' | 'gender' | 'single' | 'employee';
   targetValue?: string;
   channels: string[];
   status: 'Pending' | 'Sent' | 'Failed';
@@ -65,11 +65,17 @@ export const executeBroadcast = async (campaign: NotificationCampaign) => {
       targets = await adminListUsers();
     } else if (campaign.targetType === 'gender' && campaign.targetValue) {
       targets = await getUsersByGender(campaign.targetValue);
+    } else if (campaign.targetType === 'employee') {
+      targets = await listEmployees();
     } else if (campaign.targetType === 'single' && campaign.targetValue) {
-      // In this setup, we assume single targetValue is a userId
-      // For simplicity, we can reuse adminListUsers and filter or fetch single
-      const all = await adminListUsers();
-      targets = all.filter(u => u.email === campaign.targetValue || u.user_id === campaign.targetValue);
+      // Direct Vault Lookup: Resolve any user by email or ID bypassing traditional role filters
+      if (campaign.targetValue.includes('@')) {
+        const u = await getUserByEmail(campaign.targetValue);
+        if (u) targets = [u];
+      } else {
+        const u = await getProfile(campaign.targetValue).catch(() => null);
+        if (u) targets = [u];
+      }
     }
 
     // 2. Execute via orchestrator

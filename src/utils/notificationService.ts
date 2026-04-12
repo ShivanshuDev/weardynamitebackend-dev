@@ -3,7 +3,7 @@ import { firebaseAdmin } from './firebaseAdmin';
 import { PDFService } from './pdfService';
 import { saveUserNotification } from '../modules/user/user.service';
 import { docClient, MAIN_TABLE } from './awsClient';
-import { GetCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 
 /**
  * NotificationService: Orchestrates multi-channel communications (Email + FCM)
@@ -38,7 +38,7 @@ export class NotificationService {
         title: 'Order Confirmed! 🔥',
         body: `Your order #${order.order_number} has been received and is being processed.`,
         data: { orderId: order.order_id, type: 'order_confirmed' }
-      });
+      }, user.id || user.user_id);
     }
   }
 
@@ -80,10 +80,10 @@ export class NotificationService {
     // 3. Send Push
     if (user.fcmToken) {
       await this.sendPush(user.fcmToken, {
-        title,
-        body,
+        title: title,
+        body: body,
         data: { orderId: order.order_id, type: 'order_update', status }
-      });
+      }, user.id || user.user_id);
     }
   }
 
@@ -98,7 +98,7 @@ export class NotificationService {
         body: `Check out our latest arrival: ${product.product_name}. Limited stock available!`,
         image: product.image,
         data: { productId: product.product_id, type: 'new_product' }
-      }));
+      }, u.id || u.user_id));
     
     // For emails, we might want to do it in batches to avoid SMTP limits if using Gmail
     // For now, let's assume we send to a subset or use a more robust loop
@@ -138,7 +138,7 @@ export class NotificationService {
         title: 'Happy Birthday! 🎂',
         body: `Happy Birthday, ${user.name}! We've got a special surprise waiting for you in the shop.`,
         data: { type: 'birthday' }
-      });
+      }, user.id || user.user_id);
     }
   }
 
@@ -193,7 +193,7 @@ export class NotificationService {
             productId: payload.product?.product_id || payload.product?.id,
             image: payload.image
           }
-        }).then(() => results.pushSent++));
+        }, userId).then(() => results.pushSent++));
       }
 
       // 3. Send Email
@@ -256,7 +256,7 @@ export class NotificationService {
           title: 'New Bulk Lead! 🔥',
           body: `${inquiry.orgName} wants ${inquiry.estimatedQty} units of ${inquiry.orderType}.`,
           data: { inquiryId: inquiry.inquiryId, type: 'admin_lead' }
-        });
+        }, adminId);
       }
     } catch (e) {
       console.error('[ADMIN PUSH ERROR]', e);
@@ -288,7 +288,7 @@ export class NotificationService {
           title: 'Inquiry Received! ⚡',
           body: `Thanks for reaching out! We are reviewing your request for ${inquiry.orgName}.`,
           data: { inquiryId: inquiry.inquiryId, type: 'inquiry_received' }
-        });
+        }, userId);
       }
     } catch (e) {
       console.error('[CUSTOMER PUSH ERROR]', e);
@@ -340,7 +340,7 @@ export class NotificationService {
           title,
           body,
           data: { inquiryId: inquiry.inquiryId, type: 'inquiry_status_update', status }
-        });
+        }, userId);
       }
     } catch (e) {
       console.error('[CUSTOMER PUSH ERROR]', e);
@@ -348,9 +348,9 @@ export class NotificationService {
   }
 
   /**
-   * Internal FCM dispatch
+   * Internal FCM dispatch with automated stale-token purging.
    */
-  private static async sendPush(token: string, payload: { title: string; body: string; data?: any; image?: string }) {
+  private static async sendPush(token: string, payload: { title: string; body: string; data?: any; image?: string }, userId?: string) {
     try {
       const message: any = {
         token: token,
@@ -366,6 +366,20 @@ export class NotificationService {
       return response;
     } catch (error: any) {
       console.error('[FCM ERROR]', error.message);
+      
+      // Auto-Purge stale tokens (NotRegistered)
+      if (userId && (error.code === 'messaging/registration-token-not-registered' || error.message?.includes('NotRegistered'))) {
+        console.log(`[VAULT CLEANUP] Purging stale token for user: ${userId}`);
+        try {
+           await docClient.send(new UpdateCommand({
+              TableName: MAIN_TABLE,
+              Key: { PK: `USER#${userId}`, SK: 'PROFILE' },
+              UpdateExpression: 'REMOVE fcmToken'
+           }));
+        } catch (cleanupErr) {
+           console.error('[VAULT CLEANUP ERROR] Failed to purge stale token:', cleanupErr);
+        }
+      }
       return null;
     }
   }

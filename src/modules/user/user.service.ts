@@ -231,8 +231,26 @@ export const adminListUsers = async () => {
     KeyConditionExpression: 'GSI1PK = :pk AND begins_with(GSI1SK, :sk)',
     ExpressionAttributeValues: { 
       ':pk': 'USER',
-      ':sk': 'ROLE#customer'
+      ':sk': 'ROLE#'
     }
   }));
   return (Items || []).map(({ password, ...safe }) => safe);
+};
+
+/**
+ * Direct Vault Lookup: Find any user profile by email across all roles.
+ */
+export const getUserByEmail = async (email: string) => {
+  const { Items } = await docClient.send(new QueryCommand({
+    TableName: MAIN_TABLE,
+    IndexName: 'GSI2',
+    KeyConditionExpression: 'GSI2PK = :pk',
+    ExpressionAttributeValues: { 
+      ':pk': `EMAIL#${email.toLowerCase().trim()}`
+    }
+  }));
+  
+  if (!Items || Items.length === 0) return null;
+  const { password, ...safe } = Items[0];
+  return safe;
 };
