@@ -227,24 +227,31 @@ export class NotificationService {
   }
 
   /**
-   * Notify Admin about a new Bulk Lead
+   * Notify Admin about a new Inquiry or Bulk Lead
    */
   static async sendAdminInquiryNotification(inquiry: any) {
     const adminId = 'MASTER-ADMIN';
+    const isBulk = inquiry.type === 'bulk_order';
     
     // 1. In-App Notification
     await saveUserNotification(adminId, {
-      title: 'New Bulk Lead! 🔥',
-      message: `${inquiry.orgName} just submitted a ${inquiry.orderType} inquiry for ${inquiry.estimatedQty} units.`,
-      type: 'ADMIN_LEAD',
-      link: '/bulk-orders',
-      metadata: { inquiryId: inquiry.inquiryId, orgName: inquiry.orgName }
+      title: isBulk ? 'New Bulk Lead! 🔥' : 'New Customer Message! 📩',
+      message: isBulk 
+        ? `${inquiry.orgName} just submitted a ${inquiry.orderType} inquiry for ${inquiry.estimatedQty} units.`
+        : `${inquiry.fullName || inquiry.name} sent a message: "${inquiry.message?.substring(0, 50)}..."`,
+      type: isBulk ? 'ADMIN_LEAD' : 'ADMIN_INQUIRY',
+      link: isBulk ? '/bulk-orders' : '/inquiries',
+      metadata: { inquiryId: inquiry.inquiryId, type: inquiry.type }
     });
 
     // 2. Email Notification
-    await MailService.sendBulkInquiryNotification(inquiry);
+    if (isBulk) {
+       await MailService.sendBulkInquiryNotification(inquiry);
+    } else {
+       await MailService.sendStandardInquiryAdminNotification(inquiry);
+    }
 
-    // 3. Push Notification (Fetch Token)
+    // 3. Push Notification
     try {
       const { Item: admin } = await docClient.send(new GetCommand({
         TableName: MAIN_TABLE,
@@ -253,9 +260,11 @@ export class NotificationService {
       
       if (admin?.fcmToken) {
         await this.sendPush(admin.fcmToken, {
-          title: 'New Bulk Lead! 🔥',
-          body: `${inquiry.orgName} wants ${inquiry.estimatedQty} units of ${inquiry.orderType}.`,
-          data: { inquiryId: inquiry.inquiryId, type: 'admin_lead' }
+          title: isBulk ? 'New Bulk Lead! 🔥' : 'New Customer Message! 📩',
+          body: isBulk 
+            ? `${inquiry.orgName} wants ${inquiry.estimatedQty} units of ${inquiry.orderType}.`
+            : `From ${inquiry.fullName || inquiry.name}: ${inquiry.message?.substring(0, 50)}...`,
+          data: { inquiryId: inquiry.inquiryId, type: isBulk ? 'admin_lead' : 'admin_inquiry' }
         }, adminId);
       }
     } catch (e) {

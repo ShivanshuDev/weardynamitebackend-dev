@@ -650,6 +650,56 @@ export class MailService {
   }
 
   /**
+   * Send confirmation receipt for standard Contact Form.
+   */
+  static async sendStandardInquiryConfirmation(to: string, name: string, inquiry: any) {
+    const html = this.getStandardInquiryConfirmationTemplate(name, inquiry);
+    const subject = 'Message Received - WearDynamite Support ✨';
+
+    try {
+      await this.transporter.sendMail({
+        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.GMAIL_USER}>`,
+        to,
+        subject,
+        html,
+        attachments: [{
+          filename: 'logo.png',
+          path: this.getSignatureLogoPath(),
+          cid: 'brandlogo'
+        }]
+      });
+      console.log(`[MAIL CONTACT CONFIRM] Customer notified: ${to}`);
+    } catch (error) {
+      console.error('[MAIL CONTACT CONFIRM ERROR]', error);
+    }
+  }
+
+  /**
+   * Notify Admin about a Standard Message.
+   */
+  static async sendStandardInquiryAdminNotification(inquiry: any) {
+    const html = this.getStandardInquiryAdminTemplate(inquiry);
+    const subject = `📩 NEW MESSAGE: From ${inquiry.fullName || inquiry.name}`;
+    
+    try {
+      await this.transporter.sendMail({
+        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.GMAIL_USER}>`,
+        to: 'admin@weardynamite.com',
+        subject,
+        html,
+        attachments: [{
+          filename: 'logo.png',
+          path: this.getSignatureLogoPath(),
+          cid: 'brandlogo'
+        }]
+      });
+      console.log(`[MAIL ADMIN MSG] Admin notified of message from: ${inquiry.email}`);
+    } catch (error) {
+      console.error('[MAIL ADMIN MSG ERROR]', error);
+    }
+  }
+
+  /**
    * Notify Customer about Inquiry Status Update.
    */
   static async sendInquiryStatusEmail(to: string, name: string, inquiry: any, status: string) {
@@ -764,6 +814,55 @@ export class MailService {
           </div>
 
           <a href="https://weardynamite.com/profile/orders" style="display: inline-block; padding: 18px 40px; background: #000; color: #fff; text-decoration: none; border-radius: 12px; font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em;">View Inquiry Progress</a>
+        </div>
+      </div>
+    `;
+  }
+
+  private static getStandardInquiryConfirmationTemplate(name: string, inquiry: any) {
+    return `
+      <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 24px; overflow: hidden; background: #fff;">
+        <div style="background: #000; padding: 40px; text-align: center;">
+          <img src="cid:brandlogo" style="width: 140px;">
+        </div>
+        <div style="padding: 50px;">
+          <h1 style="font-size: 24px; font-weight: 900; color: #000; margin-bottom: 20px;">We've received your message.</h1>
+          <p style="font-size: 16px; color: #444; line-height: 1.6; margin-bottom: 30px;">Hi ${name}, thanks for reaching out to us. We have successfully logged your inquiry in our support vault, and one of our client relationship leads will get back to you shortly.</p>
+          
+          <div style="padding: 24px; background: #f8fafc; border-radius: 16px; border: 1px solid #edf2f7; margin-bottom: 30px;">
+            <p style="font-size: 11px; font-weight: 900; color: #94a3b8; text-transform: uppercase; margin: 0 0 10px 0;">Your Case ID</p>
+            <p style="font-size: 14px; font-weight: 700; color: #000; margin: 0;">#${inquiry.inquiryId.slice(0, 8)}</p>
+          </div>
+
+          <p style="font-size: 14px; color: #94a3b8; font-style: italic;">Note: Response times are currently 12-24 business hours.</p>
+          
+          <div style="margin-top: 50px; padding-top: 30px; border-top: 1px solid #eee; text-align: center;">
+             <p style="font-size: 10px; font-weight: 900; color: #94a3b8; text-transform: uppercase;">Institutional Grade Luxury Streetwear</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private static getStandardInquiryAdminTemplate(inquiry: any) {
+    return `
+      <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 20px; overflow: hidden; background: #fff;">
+        <div style="background: #000; padding: 30px; text-align: center;">
+          <img src="cid:brandlogo" style="width: 120px;">
+        </div>
+        <div style="padding: 40px;">
+          <h1 style="font-size: 22px; font-weight: 900; margin-bottom: 20px; color: #000;">New Customer Message</h1>
+          <div style="background: #f8fafc; padding: 30px; border-radius: 15px; border: 1px solid #e2e8f0; margin-bottom:30px;">
+            <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 900; text-transform: uppercase;">From</p>
+            <p style="margin: 5px 0 15px 0; font-size: 16px; font-weight: 700; color: #000;">${inquiry.fullName || inquiry.name}</p>
+            
+            <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 900; text-transform: uppercase;">Contact info</p>
+            <p style="margin: 5px 0 15px 0; font-size: 14px; color: #475569;">${inquiry.email} | ${inquiry.mobile || 'N/A'}</p>
+            
+            <p style="margin: 0; font-size: 11px; color: #94a3b8; font-weight: 900; text-transform: uppercase;">Message Content</p>
+            <p style="margin: 5px 0 0 0; font-size: 14px; line-height: 1.6; color: #000;">${inquiry.message}</p>
+          </div>
+          <a href="http://localhost:5174/inquiries" style="display: inline-block; padding: 15px 35px; background: #000; color: #fff; text-decoration: none; border-radius: 12px; font-weight: 900; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em;">Manage Inquiries</a>
         </div>
       </div>
     `;

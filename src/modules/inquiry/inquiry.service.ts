@@ -50,27 +50,31 @@ export const submitInquiry = async (data: Record<string, any>) => {
   // Post-submission Processing (Async)
   (async () => {
     try {
-      if (data.type === 'bulk_order') {
-        // 1. Admin Alerts (Email + In-App + Push)
-        await NotificationService.sendAdminInquiryNotification(record);
-        
-        // 2. Customer Confirmation Email
-        await MailService.sendInquiryConfirmation(record.email, record.fullName, record);
+      const isBulk = data.type === 'bulk_order';
 
-        // 3. Customer In-App + Push (Link to existing account)
-        if (data.email) {
-          const { Items: users } = await docClient.send(new QueryCommand({
-            TableName: MAIN_TABLE,
-            IndexName: 'GSI2',
-            KeyConditionExpression: 'GSI2PK = :pk',
-            ExpressionAttributeValues: { ':pk': `EMAIL#${data.email.toLowerCase()}` }
-          }));
+      // 1. Admin Alerts (Email + In-App + Push)
+      await NotificationService.sendAdminInquiryNotification(record);
+      
+      // 2. Customer Confirmation Email (Always sent to provided email)
+      if (isBulk) {
+        await MailService.sendInquiryConfirmation(record.email, record.fullName || record.name || 'Valued Customer', record);
+      } else {
+        await MailService.sendStandardInquiryConfirmation(record.email, record.fullName || record.name || 'Valued Customer', record);
+      }
 
-          if (users && users.length > 0) {
-            const user = users[0];
-            const userId = user.PK.replace('USER#', '');
-            await NotificationService.sendCustomerInquiryConfirmation(userId, record);
-          }
+      // 3. Customer In-App + Push (Only if they have a registered account)
+      if (data.email) {
+        const { Items: users } = await docClient.send(new QueryCommand({
+          TableName: MAIN_TABLE,
+          IndexName: 'GSI2',
+          KeyConditionExpression: 'GSI2PK = :pk',
+          ExpressionAttributeValues: { ':pk': `EMAIL#${data.email.toLowerCase()}` }
+        }));
+
+        if (users && users.length > 0) {
+          const user = users[0];
+          const userId = user.PK.replace('USER#', '');
+          await NotificationService.sendCustomerInquiryConfirmation(userId, record);
         }
       }
     } catch (err) {
