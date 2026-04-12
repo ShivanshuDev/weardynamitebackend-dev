@@ -7,8 +7,8 @@ import {
   UpdateCommand
 } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
-import { NotificationService } from '../../utils/notificationService';
 import { adminListUsers } from '../user/user.service';
+import { cache } from '../../utils/redisClient';
 
 export interface Product {
   product_id: string;
@@ -169,6 +169,9 @@ export const createProduct = async (
     })
   );
 
+  // Invalidate list caches
+  await cache.delPattern('products:*');
+
   // Broadcast notification if active
   if (status === 'Active') {
     adminListUsers().then(users => {
@@ -183,6 +186,10 @@ export const createProduct = async (
  * GET SINGLE PRODUCT
  */
 export const getProduct = async (productId: string) => {
+  const cacheKey = `product:${productId}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Item } = await docClient.send(
     new GetCommand({
       TableName: INVENTORY_TABLE,
@@ -193,6 +200,9 @@ export const getProduct = async (productId: string) => {
     })
   );
 
+  if (Item) {
+    await cache.set(cacheKey, Item, 900); // Cache for 15 mins
+  }
   return Item;
 };
 
@@ -249,18 +259,25 @@ export const listProducts = async (filters: any = {}) => {
     }
   }
 
+  const cacheKey = `products:list:${JSON.stringify(filters)}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Items } = await docClient.send(new QueryCommand(queryParams));
 
   const products = Items || [];
   const start = (page - 1) * limit;
 
-  return {
+  const result = {
     items: products.slice(start, start + limit),
     total: products.length,
     page,
     limit,
     totalPages: Math.ceil(products.length / limit)
   };
+
+  await cache.set(cacheKey, result, 300); // Cache for 5 mins
+  return result;
 };
 
 /**
@@ -286,6 +303,10 @@ export const searchProducts = async (query: string) => {
  * GET NEW ARRIVALS
  */
 export const getNewArrivals = async () => {
+  const cacheKey = 'products:news';
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   // Fetch products explicitly flagged as Fresh Arrival
   const { Items } = await docClient.send(
     new QueryCommand({
@@ -298,13 +319,20 @@ export const getNewArrivals = async () => {
       Limit: 20
     })
   );
-  return Items || [];
+
+  const result = Items || [];
+  await cache.set(cacheKey, result, 600); // Cache for 10 mins
+  return result;
 };
 
 /**
  * GET BEST SELLERS
  */
 export const getBestSellers = async () => {
+  const cacheKey = 'products:bestsellers';
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   // Fetch products explicitly flagged as Most Popular
   const { Items } = await docClient.send(
     new QueryCommand({
@@ -317,7 +345,10 @@ export const getBestSellers = async () => {
       Limit: 20
     })
   );
-  return Items || [];
+  
+  const result = Items || [];
+  await cache.set(cacheKey, result, 600); // Cache for 10 mins
+  return result;
 };
 
 /**
@@ -450,6 +481,10 @@ export const updateProduct = async (
     })
   );
 
+  // Invalidate cache
+  await cache.del(`product:${productId}`);
+  await cache.delPattern('products:*');
+
   return Attributes;
 };
 
@@ -466,6 +501,10 @@ export const deleteProduct = async (productId: string) => {
       }
     })
   );
+
+  // Invalidate cache
+  await cache.del(`product:${productId}`);
+  await cache.delPattern('products:*');
 
   return { success: true };
 };

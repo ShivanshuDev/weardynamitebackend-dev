@@ -1,6 +1,7 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
+import { cache } from '../../utils/redisClient';
 
 export const listBlogs = async (adminMode = false) => {
   if (adminMode) {
@@ -14,6 +15,10 @@ export const listBlogs = async (adminMode = false) => {
     }));
     return Items || [];
   } else {
+    const cacheKey = 'blogs:list:public';
+    const cached = await cache.get(cacheKey);
+    if (cached) return cached as any;
+
     // Public ONLY gets "Live" versions via GSI2
     const { Items } = await docClient.send(new QueryCommand({
       TableName: MAIN_TABLE,
@@ -22,15 +27,26 @@ export const listBlogs = async (adminMode = false) => {
       ExpressionAttributeValues: { ':pk': 'STATUS#Live' },
       ScanIndexForward: false
     }));
-    return Items || [];
+    
+    const result = Items || [];
+    await cache.set(cacheKey, result, 600); // 10 mins
+    return result;
   }
 };
 
 export const getBlog = async (id: string, version: 'LIVE' | 'DRAFT' = 'LIVE') => {
+  const cacheKey = `blog:${id}:${version}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Item } = await docClient.send(new GetCommand({
     TableName: MAIN_TABLE,
     Key: { PK: `BLOG#${id}`, SK: `VERSION#${version}` }
   }));
+
+  if (Item) {
+    await cache.set(cacheKey, Item, 900); // 15 mins
+  }
   return Item;
 };
 
@@ -86,9 +102,14 @@ export const updateBlog = async (id: string, updates: Record<string, any>) => {
   }
 
   // Protect the record's identity (PK/SK/ID) from being overridden by incoming data
-  const { PK, SK, blogId, id: _id, ...cleanUpdates } = updates;
   const updated = { ...draft, ...cleanUpdates, updatedAt: now };
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: updated }));
+  
+  // Invalidate cache
+  await cache.del(`blog:${id}:DRAFT`);
+  await cache.del(`blog:${id}:LIVE`);
+  await cache.delPattern('blogs:list:*');
+
   return updated;
 };
 
@@ -158,6 +179,15 @@ export const publishBlog = async (id: string) => {
       }
     ];
     await docClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
+    
+    // Invalidate caches
+    await cache.delPattern('blogs:list:*');
+    await cache.del(`blog:${id}:LIVE`);
+    await cache.del(`blog:${id}:DRAFT`);
+    if (parentId) {
+      await cache.del(`blog:${parentId}:LIVE`);
+    }
+
     return liveRecord;
   }
 };
@@ -180,5 +210,11 @@ export const deleteBlog = async (id: string) => {
   const deleteLive = docClient.send(new DeleteCommand({ TableName: MAIN_TABLE, Key: { PK: `BLOG#${id}`, SK: 'VERSION#LIVE' } }));
   const deleteDraft = docClient.send(new DeleteCommand({ TableName: MAIN_TABLE, Key: { PK: `BLOG#${id}`, SK: 'VERSION#DRAFT' } }));
   await Promise.all([deleteLive, deleteDraft]);
+
+  // Invalidate cache
+  await cache.delPattern('blogs:list:*');
+  await cache.del(`blog:${id}:LIVE`);
+  await cache.del(`blog:${id}:DRAFT`);
+
   return { message: 'Blog destroyed' };
 };

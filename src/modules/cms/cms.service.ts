@@ -1,14 +1,22 @@
-import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 import { GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { cache } from '../../utils/redisClient';
+import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 
 const CMS_PK = 'CMS#SITE';
 
 export const getCms = async () => {
+  const cacheKey = 'cms:site';
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached;
+
   const { Item } = await docClient.send(new GetCommand({
     TableName: MAIN_TABLE,
     Key: { PK: CMS_PK, SK: 'CMS' }
   }));
-  return Item || getDefaultCms();
+
+  const data = Item || getDefaultCms();
+  await cache.set(cacheKey, data, 3600); // Cache for 1 hour
+  return data;
 };
 
 export const updateCmsSection = async (sectionPath: string, data: any) => {
@@ -38,6 +46,9 @@ export const updateCmsSection = async (sectionPath: string, data: any) => {
       ...updated
     } 
   }));
+  
+  // Invalidate cache
+  await cache.del('cms:site');
   
   return updated;
 };

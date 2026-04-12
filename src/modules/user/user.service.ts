@@ -167,7 +167,8 @@ export const saveUserNotification = async (userId: string, payload: {
     id: notifId,
     ...payload,
     isRead: false,
-    created_at: now
+    created_at: now,
+    expires_at: Math.floor((now + 10 * 24 * 60 * 60 * 1000) / 1000) // 10 days
   };
 
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: record }));
@@ -198,8 +199,11 @@ export const markNotificationRead = async (userId: string, notifId: string) => {
   await docClient.send(new UpdateCommand({
     TableName: MAIN_TABLE,
     Key: { PK: `USER#${userId}`, SK: target.SK },
-    UpdateExpression: 'SET isRead = :val',
-    ExpressionAttributeValues: { ':val': true }
+    UpdateExpression: 'SET isRead = :val, expires_at = :exp',
+    ExpressionAttributeValues: { 
+      ':val': true,
+      ':exp': Math.floor((target.created_at + 7 * 24 * 60 * 60 * 1000) / 1000) // 7 days from creation
+    }
   }));
   
   return { ...target, isRead: true };
@@ -213,8 +217,11 @@ export const markAllNotificationsRead = async (userId: string) => {
     docClient.send(new UpdateCommand({
       TableName: MAIN_TABLE,
       Key: { PK: `USER#${userId}`, SK: n.SK },
-      UpdateExpression: 'SET isRead = :val',
-      ExpressionAttributeValues: { ':val': true }
+      UpdateExpression: 'SET isRead = :val, expires_at = :exp',
+      ExpressionAttributeValues: { 
+        ':val': true,
+        ':exp': Math.floor((n.created_at + 7 * 24 * 60 * 60 * 1000) / 1000)
+      }
     }))
   );
   
