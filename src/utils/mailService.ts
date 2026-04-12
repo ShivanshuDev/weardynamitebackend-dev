@@ -406,6 +406,150 @@ export class MailService {
     return `${cloudfront}${cleanPath}`;
   }
 
+  /**
+   * Sends a high-fidelity Payroll Disbursement confirmation email.
+   */
+  static async sendPayrollPaymentEmail(to: string, name: string, data: any) {
+    const html = this.getPayrollPaymentTemplate(name, data);
+    const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+
+    try {
+      await this.transporter.sendMail({
+        from: `"WearDynamite Vault" <${process.env.GMAIL_USER}>`,
+        to,
+        subject: `Payment Successful: ${data.month} Disbursement 🔥`,
+        html,
+        attachments: [{ filename: 'logo.png', path: logoPath, cid: 'brandlogo' }],
+      });
+      console.log(`[MAIL SUCCESS] Payroll alert sent to: ${to}`);
+    } catch (error) {
+      console.error(`[MAIL ERROR] Failed payroll alert for ${to}:`, error);
+    }
+  }
+
+  /**
+   * Sends a comprehensive Payroll Ledger summary email.
+   */
+  static async sendPayrollLedgerEmail(to: string, name: string, records: any[]) {
+    const html = this.getPayrollLedgerTemplate(name, records);
+    const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+
+    try {
+      await this.transporter.sendMail({
+        from: `"WearDynamite Personnel" <${process.env.GMAIL_USER}>`,
+        to,
+        subject: `Institutional Statement: Payout History ✨`,
+        html,
+        attachments: [{ filename: 'logo.png', path: logoPath, cid: 'brandlogo' }],
+      });
+      console.log(`[MAIL SUCCESS] Ledger statement sent to: ${to}`);
+    } catch (error) {
+      console.error(`[MAIL ERROR] Failed ledger statement for ${to}:`, error);
+    }
+  }
+
+  /**
+   * Sends a high-fidelity Custom Broadcast (Marketing/Campaign) email.
+   */
+  static async sendCustomBroadcastEmail(to: string, name: string, title: string, body: string, image?: string, product?: any) {
+    const html = this.getCustomBroadcastTemplate(name, title, body, image, product);
+    const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+
+    try {
+      await this.transporter.sendMail({
+        from: `"WearDynamite" <${process.env.GMAIL_USER}>`,
+        to,
+        subject: `${title} 🔥`,
+        html,
+        attachments: [{ filename: 'logo.png', path: logoPath, cid: 'brandlogo' }],
+      });
+      return { success: true };
+    } catch (error) {
+      console.error(`[MAIL ERROR] Failed custom broadcast to ${to}:`, error);
+      throw error;
+    }
+  }
+
+  private static getPayrollPaymentTemplate(name: string, data: any) {
+    const accentColor = '#3b82f6';
+    return `
+      <div style="font-family: 'Inter', sans-serif; background-color: #f8fafc; padding: 40px;">
+        <div style="max-width: 600px; margin: auto; background: white; border-radius: 24px; overflow: hidden; border: 1px solid #edf2f7; box-shadow: 0 20px 50px rgba(0,0,0,0.05);">
+          <div style="background: black; padding: 40px; text-align: center;">
+             <img src="cid:brandlogo" style="width: 150px;">
+          </div>
+          <div style="padding: 50px;">
+            <div style="display: inline-block; padding: 5px 12px; background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 100px; font-size: 10px; font-weight: 900; text-transform: uppercase; margin-bottom: 25px;">DISBURSEMENT SUCCESSFUL</div>
+            <h1 style="font-size: 28px; font-weight: 900; color: #000; margin-bottom: 10px; text-transform: uppercase;">Payment Confirmed.</h1>
+            <p style="color: #64748b; line-height: 1.6;">Hi ${name}, your monthly settlement for <strong>${data.month}</strong> has been successfully processed into your linked account.</p>
+            
+            <div style="margin: 35px 0; background: #f8fafc; border-radius: 15px; padding: 25px; border: 1px solid #e2e8f0;">
+               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                  <span style="font-size: 11px; font-weight: 900; color: #94a3b8; text-transform: uppercase;">Amount Disbursed</span>
+                  <span style="font-size: 18px; font-weight: 900; color: ${accentColor};">₹${data.amount.toLocaleString()}</span>
+               </div>
+               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                  <span style="font-size: 11px; font-weight: 900; color: #94a3b8; text-transform: uppercase;">Method</span>
+                  <span style="font-size: 14px; font-weight: 900; color: #1e293b;">${data.paymentMethod || 'Cash'}</span>
+               </div>
+               <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <span style="font-size: 11px; font-weight: 900; color: #94a3b8; text-transform: uppercase;">Reference ID</span>
+                  <span style="font-size: 14px; font-weight: 900; color: #1e293b;">${data.transactionId || '-'}</span>
+               </div>
+            </div>
+            
+            <p style="font-size: 13px; color: #94a3b8; line-height: 1.6; font-style: italic;">Note: ${data.note || 'No additional remarks.'}</p>
+          </div>
+          <div style="padding: 30px; background: #000; text-align: center; color: rgba(255,255,255,0.4); font-size: 10px; font-weight: 900; text-transform: uppercase;">Institutional Grade Luxury Streetwear</div>
+        </div>
+      </div>
+    `;
+  }
+
+  private static getPayrollLedgerTemplate(name: string, records: any[]) {
+    const total = records.reduce((s, r) => s + Number(r.amount || 0), 0);
+    const rows = records.map(r => `
+      <tr style="border-bottom: 1px solid #eee;">
+        <td style="padding: 12px 5px; font-size: 12px; color: #475569;">${r.month}</td>
+        <td style="padding: 12px 5px; font-size: 12px; color: #475569;">${r.isAdvance ? 'Advance' : 'Settlement'}</td>
+        <td style="padding: 12px 5px; font-size: 14px; color: #0f172a; font-weight: 700; text-align: right;">₹${r.amount.toLocaleString()}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <div style="font-family: 'Inter', sans-serif; background-color: #f8fafc; padding: 40px;">
+        <div style="max-width: 600px; margin: auto; background: white; border-radius: 24px; overflow: hidden; border: 1px solid #edf2f7;">
+          <div style="background: black; padding: 30px; text-align: center;">
+             <img src="cid:brandlogo" style="width: 120px;">
+          </div>
+          <div style="padding: 50px;">
+            <h1 style="font-size: 24px; font-weight: 900; color: #000; margin-bottom: 10px;">Personnel Ledger Statement</h1>
+            <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin-bottom: 30px;">Hi ${name}, attached below is your institutional disbursement summary as requested by management.</p>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+               <thead>
+                  <tr style="border-bottom: 2px solid #000; text-align: left;">
+                     <th style="padding: 10px 5px; font-size: 10px; font-weight: 900; text-transform: uppercase; color: #94a3b8;">Period</th>
+                     <th style="padding: 10px 5px; font-size: 10px; font-weight: 900; text-transform: uppercase; color: #94a3b8;">Type</th>
+                     <th style="padding: 10px 5px; font-size: 10px; font-weight: 900; text-transform: uppercase; color: #94a3b8; text-align: right;">Amount</th>
+                  </tr>
+               </thead>
+               <tbody>${rows}</tbody>
+               <tfoot>
+                  <tr>
+                     <td colspan="2" style="padding: 20px 5px; font-size: 12px; font-weight: 900; text-transform: uppercase; color: #000;">Total Historical Payout</td>
+                     <td style="padding: 20px 5px; font-size: 16px; font-weight: 900; color: #3b82f6; text-align: right;">₹${total.toLocaleString()}</td>
+                  </tr>
+               </tfoot>
+            </table>
+            
+            <p style="font-size: 12px; color: #94a3b8; text-align: center;">This document is system-generated for audit purposes.</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   private static getOrderConfirmedTemplate(name: string, order: any, items: any[]) {
     const itemsHtml = items.map(item => {
       const imageUrl = this.resolveImageUrl(item.thumbnail || item.product?.image || '');
@@ -612,6 +756,38 @@ export class MailService {
           </div>
 
           <a href="https://weardynamite.com/profile/orders" style="display: inline-block; padding: 18px 40px; background: #000; color: #fff; text-decoration: none; border-radius: 12px; font-weight: 900; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em;">View Inquiry Progress</a>
+        </div>
+      </div>
+    `;
+  }
+
+  private static getCustomBroadcastTemplate(name: string, title: string, body: string, image?: string, product?: any) {
+    const heroImage = image ? `
+      <div style="width: 100%; max-height: 400px; overflow: hidden; margin-bottom: 30px; border-radius: 15px;">
+        <img src="${image}" style="width: 100%; height: auto; object-fit: cover;">
+      </div>
+    ` : '';
+    
+    const productButton = product ? `
+      <div style="margin-top: 40px; text-align: center;">
+        <a href="https://weardynamite.com/product/${product.id || product.product_id}" style="display: inline-block; padding: 18px 45px; background: #FF5F1F; color: #ffffff !important; text-decoration: none; font-weight: 900; border-radius: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; box-shadow: 0 10px 30px rgba(255, 95, 31, 0.3);">View Product Now</a>
+      </div>
+    ` : '';
+
+    return `
+      <div style="font-family: 'Inter', Helvetica, sans-serif; background-color: #f4f4f4; padding: 40px;">
+        <div style="max-width: 600px; margin: auto; background: white; border-radius: 24px; overflow: hidden; border: 1px solid #eee; box-shadow: 0 20px 50px rgba(0,0,0,0.05);">
+          <div style="background: black; padding: 40px; text-align: center;">
+            <img src="cid:brandlogo" style="width: 160px;">
+          </div>
+          <div style="padding: 50px;">
+            ${heroImage}
+            <h1 style="font-size: 32px; font-weight: 900; color: #000; margin-bottom: 20px; line-height: 1.2; text-transform: uppercase; letter-spacing: -1px;">${title}</h1>
+            <p style="font-size: 18px; color: #1e293b; font-weight: 700; margin-bottom: 15px;">Hi ${name},</p>
+            <p style="font-size: 16px; color: #64748b; line-height: 1.8; margin-bottom: 30px;">${body}</p>
+            ${productButton}
+          </div>
+          <div style="padding: 40px; background: #000; color: rgba(255,255,255,0.4); text-align: center; font-size: 10px; font-weight: 900; text-transform: uppercase;">Institutional Grade Luxury Streetwear</div>
         </div>
       </div>
     `;

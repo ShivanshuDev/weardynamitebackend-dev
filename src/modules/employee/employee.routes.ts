@@ -27,5 +27,6 @@ router.get('/attendance/:employeeId/audit-log', auth, admin, EC.getEmployeeAudit
 router.get('/payroll', auth, admin, EC.listPayroll);
 router.post('/payroll', auth, admin, EC.processPayroll);
 router.get('/payroll/:employeeId', auth, admin, EC.getEmployeePayroll);
+router.post('/employees/:id/payroll/send-ledger', auth, admin, EC.sendPayrollLedgerEmail);
 
 export default router;

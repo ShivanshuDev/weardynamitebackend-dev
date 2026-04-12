@@ -78,3 +78,18 @@ export const downloadPersonnelForm = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'PDF generation failure' });
   }
 };
+
+export const sendPayrollLedgerEmail = async (req: Request, res: Response) => {
+  try {
+    const employee = await EmployeeService.getEmployee(req.params.id as string);
+    if (!employee) return res.status(404).json({ message: 'Personnel record not found' });
+    
+    const records = await EmployeeService.getEmployeePayroll(req.params.id as string);
+    await MailService.sendPayrollLedgerEmail(employee.email, employee.name, records);
+    
+    res.json({ message: 'Institutional ledger dispatched via email' });
+  } catch (e: any) {
+    console.error('[CONTROLLER ERROR] Ledger Email:', e);
+    res.status(500).json({ message: 'Vault communications failure' });
+  }
+};

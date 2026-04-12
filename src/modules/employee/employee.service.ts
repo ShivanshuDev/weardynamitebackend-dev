@@ -2,6 +2,7 @@ import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { addTransaction } from '../ledger/ledger.service';
+import { MailService } from '../../utils/mailService';
 
 // ─── Employees ───────────────────────────────────────────────────────────────
 
@@ -185,38 +186,72 @@ export const listPayroll = async () => {
   return Items || [];
 };
 
-export const processPayroll = async (data: { employeeId: string; month: string; amount: number; note?: string }) => {
+export const processPayroll = async (data: { 
+  employeeId: string; 
+  month: string; 
+  amount: number; 
+  isAdvance?: boolean; 
+  note?: string;
+  paymentMethod?: 'Cash' | 'Online';
+  transactionId?: string;
+  receiptUrl?: string;
+}) => {
   const id = uuidv4();
+  const now = Date.now();
   
+  console.log('[PAYROLL DEBUG] Incoming Payout Request:', JSON.stringify(data, null, 2));
+
   const { Item: employee } = await docClient.send(new GetCommand({
     TableName: MAIN_TABLE,
     Key: { PK: `EMPLOYEE#${data.employeeId}`, SK: 'EMPLOYEE' }
   }));
   
-  if (!employee) throw new Error('Employee not found');
+  if (!employee) {
+    console.error('[PAYROLL ERROR] Employee record not found for PK:', `EMPLOYEE#${data.employeeId}`);
+    throw new Error('Personnel record not found in central vault.');
+  }
 
-  // Auto create ledger debit entry
+  // Policy Enforcement: Amount must be within CTC limits
+  const monthlySalary = Number(employee.salary || 0);
+  if (monthlySalary > 0 && data.amount > monthlySalary) {
+    console.warn('[PAYROLL WARNING] Over-disbursement detected:', { amount: data.amount, salary: monthlySalary });
+    throw new Error(`Disbursement exceeds Monthly CTC limit (₹${monthlySalary}). Operation aborted.`);
+  }
+
+  // Auto create ledger debit entry with context-aware metadata
+  const methodSuffix = data.paymentMethod ? ` (${data.paymentMethod})` : '';
+  const ledgerDescription = data.isAdvance 
+    ? `Salary Advance${methodSuffix} - ${employee.name} (${data.month})` 
+    : `Monthly Payout${methodSuffix} - ${employee.name} (${data.month})`;
+
   await addTransaction({
-    description: `Admin Salary - ${employee.name} (${data.month})`,
+    description: ledgerDescription,
     type: 'Debit',
     amount: data.amount,
     referenceId: data.employeeId,
-    date: Date.now()
+    date: now
   });
 
   const record = {
     PK: `EMPLOYEE#${data.employeeId}`,
-    SK: `PAYROLL#${data.month}`,
+    SK: `PAYROLL#${data.month}#${now}`, // Unique SK allows multiple disbursements in a single month
     GSI1PK: 'PAYROLL',
-    GSI1SK: `DATE#${Date.now()}`,
+    GSI1SK: `DATE#${now}`,
     payrollId: id,
     employeeName: employee.name,
     ...data,
     status: 'Paid',
-    createdAt: Date.now()
+    createdAt: now
   };
 
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: record }));
+
+  // Automated Notification: Dispatch payout alert to personnel
+  if (employee.email) {
+    MailService.sendPayrollPaymentEmail(employee.email, employee.name, record).catch(e => {
+       console.error('[MAIL TRIGGER ERROR] Automated payout alert failed:', e);
+    });
+  }
   return record;
 };
 
