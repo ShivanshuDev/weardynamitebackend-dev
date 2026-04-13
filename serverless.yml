@@ -3,12 +3,30 @@ service: weardynamite-backend
 provider:
   name: aws
   runtime: nodejs20.x
-  region: ap-south-1
+  region: ap-southeast-2
   stage: ${opt:stage, 'dev'}
   timeout: 29
   
   environment:
     NODE_ENV: ${self:provider.stage}
+
+  iam:
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - "dynamodb:DescribeTable"
+            - "dynamodb:Query"
+            - "dynamodb:Scan"
+            - "dynamodb:GetItem"
+            - "dynamodb:PutItem"
+            - "dynamodb:UpdateItem"
+            - "dynamodb:DeleteItem"
+          Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/*"
+        - Effect: "Allow"
+          Action:
+            - "s3:*"
+          Resource: "arn:aws:s3:::*"
 
 custom:
   dotenv:
@@ -18,6 +36,7 @@ custom:
       - AWS_REGION
 
 plugins:
+  - serverless-plugin-typescript
   - serverless-dotenv-plugin
 
 functions:

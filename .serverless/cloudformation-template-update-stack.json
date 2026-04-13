@@ -2,6 +2,75 @@
   "AWSTemplateFormatVersion": "2010-09-09",
   "Description": "The AWS CloudFormation template for this Serverless application",
   "Resources": {
+    "ServerlessDeploymentBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "ServerlessDeploymentBucketPolicy": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "ServerlessDeploymentBucket"
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "s3:*",
+              "Effect": "Deny",
+              "Principal": "*",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Ref": "ServerlessDeploymentBucket"
+                      },
+                      "/*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Ref": "ServerlessDeploymentBucket"
+                      }
+                    ]
+                  ]
+                }
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": false
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
     "ApiLogGroup": {
       "Type": "AWS::Logs::LogGroup",
       "Properties": {
@@ -65,6 +134,26 @@
                       "Fn::Sub": "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/weardynamite-backend-dev*:*:*"
                     }
                   ]
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "dynamodb:DescribeTable",
+                    "dynamodb:Query",
+                    "dynamodb:Scan",
+                    "dynamodb:GetItem",
+                    "dynamodb:PutItem",
+                    "dynamodb:UpdateItem",
+                    "dynamodb:DeleteItem"
+                  ],
+                  "Resource": "arn:aws:dynamodb:ap-southeast-2:*:table/*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "s3:*"
+                  ],
+                  "Resource": "arn:aws:s3:::*"
                 }
               ]
             }
@@ -90,8 +179,10 @@
       "Type": "AWS::Lambda::Function",
       "Properties": {
         "Code": {
-          "S3Bucket": "serverless-framework-deployments-ap-south-1-ca89df64-a1c3",
-          "S3Key": "serverless/weardynamite-backend/dev/1775759797372-2026-04-09T18:36:37.372Z/weardynamite-backend.zip"
+          "S3Bucket": {
+            "Ref": "ServerlessDeploymentBucket"
+          },
+          "S3Key": "serverless/weardynamite-backend/dev/1776022567707-2026-04-12T19:36:07.707Z/weardynamite-backend.zip"
         },
         "Handler": "src/handler.handler",
         "Runtime": "nodejs20.x",
@@ -118,7 +209,7 @@
             "BACKEND_URL": "http://localhost:5001",
             "GMAIL_USER": "weardynamitehub@gmail.com",
             "GMAIL_APP_PASSWORD": "sslt igva aohs cskh",
-            "NODE_OPTIONS": "--enable-source-maps"
+            "REDIS_URL": "rediss://default:gQAAAAAAAXrSAAIncDI4NzlkYTcwZDA1ZmY0OTViODU5MzFlZDNiMGU3ZGY1NHAyOTY5Nzg@pet-amoeba-96978.upstash.io:6379"
           }
         },
         "Role": {
@@ -132,14 +223,14 @@
         "ApiLogGroup"
       ]
     },
-    "ApiLambdaVersionwSfIXaWkDk8njjcMQ20eF4PVwUtjMMJT3Z8pd64Rers": {
+    "ApiLambdaVersionnoQhSIG2TijFZ2BEfc99UQp6qbipm0ialC92ZiD7PtY": {
       "Type": "AWS::Lambda::Version",
       "DeletionPolicy": "Retain",
       "Properties": {
         "FunctionName": {
           "Ref": "ApiLambdaFunction"
         },
-        "CodeSha256": "jfxW06TzZyFrF5EYq+5q9+99Dmuy960E3qTGnJd7dWw="
+        "CodeSha256": "TB2KOxNtEGVj0pjOBytYUVfSVPXWTjef2A8+OAzVkzg="
       }
     },
     "HttpApi": {
@@ -240,7 +331,9 @@
   },
   "Outputs": {
     "ServerlessDeploymentBucketName": {
-      "Value": "serverless-framework-deployments-ap-south-1-ca89df64-a1c3",
+      "Value": {
+        "Ref": "ServerlessDeploymentBucket"
+      },
       "Export": {
         "Name": "sls-weardynamite-backend-dev-ServerlessDeploymentBucketName"
       }
@@ -248,7 +341,7 @@
     "ApiLambdaFunctionQualifiedArn": {
       "Description": "Current Lambda function version",
       "Value": {
-        "Ref": "ApiLambdaVersionwSfIXaWkDk8njjcMQ20eF4PVwUtjMMJT3Z8pd64Rers"
+        "Ref": "ApiLambdaVersionnoQhSIG2TijFZ2BEfc99UQp6qbipm0ialC92ZiD7PtY"
       },
       "Export": {
         "Name": "sls-weardynamite-backend-dev-ApiLambdaFunctionQualifiedArn"
