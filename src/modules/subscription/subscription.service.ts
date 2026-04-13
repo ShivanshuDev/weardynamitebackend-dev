@@ -1,9 +1,42 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
-import { QueryCommand, UpdateCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { QueryCommand, UpdateCommand, TransactWriteCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { MailService } from '../../utils/mailService';
 
-export const subscribe = async (data: { email: string; name?: string; phone?: string }) => {
-  const { email, name, phone } = data;
+export const subscribe = async (data: { email: string; name?: string; phone?: string; identifier?: string }) => {
+  const { email, name, phone, identifier } = data;
+  
+  // Rate Limit Check: 3 in 90 minutes
+  if (identifier) {
+    const ninetyMinsAgo = Date.now() - 5400000;
+    const { Items: recentSubmits } = await docClient.send(new QueryCommand({
+      TableName: MAIN_TABLE,
+      IndexName: 'GSI1',
+      KeyConditionExpression: 'GSI1PK = :pk AND GSI1SK >= :sk',
+      ExpressionAttributeValues: { 
+        ':pk': `RATE_LIMIT#SUBSCRIPTION#${identifier}`, 
+        ':sk': `TIME#${ninetyMinsAgo}` 
+      }
+    }));
+
+    if (recentSubmits && recentSubmits.length >= 3) {
+      throw new Error('try after some reached limit to subscribe max 3 times in 90 minutes');
+    }
+
+    // Log this attempt
+    await docClient.send(new PutCommand({
+      TableName: MAIN_TABLE,
+      Item: {
+        PK: `RATE_LIMIT#SUBSCRIPTION#${identifier}`,
+        SK: `TIME#${Date.now()}`,
+        GSI1PK: `RATE_LIMIT#SUBSCRIPTION#${identifier}`,
+        GSI1SK: `TIME#${Date.now()}`,
+        type: 'subscription_attempt',
+        email,
+        ttl: Math.floor(Date.now() / 1000) + (90 * 60) // Expire after 90 mins
+      }
+    }));
+  }
+
   const now = Date.now();
   const dateStr = new Date().toISOString().split('T')[0];
   const finalName = name || email.split('@')[0];

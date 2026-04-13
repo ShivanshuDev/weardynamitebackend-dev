@@ -16,6 +16,24 @@ export const listInquiries = async () => {
 };
 
 export const submitInquiry = async (data: Record<string, any>) => {
+  // Rate Limit Check: 3 in 90 minutes
+  if (data.email) {
+    const ninetyMinsAgo = Date.now() - 5400000;
+    const { Items: recentInquiries } = await docClient.send(new QueryCommand({
+      TableName: MAIN_TABLE,
+      IndexName: 'GSI4',
+      KeyConditionExpression: 'GSI4PK = :pk AND GSI4SK >= :sk',
+      ExpressionAttributeValues: { 
+        ':pk': `USER_INQUIRY#${data.email.toLowerCase()}`, 
+        ':sk': `DATE#${ninetyMinsAgo}#` 
+      }
+    }));
+
+    if (recentInquiries && recentInquiries.length >= 3) {
+      throw new Error('try after some reached limit to submit max 3 inquiries in 90 minutes');
+    }
+  }
+
   const id = uuidv4();
   const timestamp = Date.now();
   const record: any = {

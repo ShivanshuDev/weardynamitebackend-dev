@@ -4,7 +4,12 @@ import * as InquiryService from './inquiry.service';
 
 // Inquiries
 export const submitInquiry = async (req: Request, res: Response) => {
-  try { res.status(201).json(await InquiryService.submitInquiry(req.body)); } catch (e: any) { res.status(400).json({ message: e.message }); }
+  try { 
+    res.status(201).json(await InquiryService.submitInquiry(req.body)); 
+  } catch (e: any) { 
+    const status = e.message.includes('reached limit') ? 429 : 400;
+    res.status(status).json({ message: e.message }); 
+  }
 };
 export const listInquiries = async (req: Request, res: Response) => {
   try { res.json(await InquiryService.listInquiries((req.query.status as string) || undefined)); } catch (e: any) { res.status(400).json({ message: e.message }); }

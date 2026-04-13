@@ -32,7 +32,9 @@ export const initiatePayment = async (req: Request, res: Response) => {
     res.json(paymentData);
   } catch (error: any) {
     console.error('Payment Initiation Error:', error);
-    const status = error.message.includes('Insufficient stock') ? 422 : 500;
+    let status = 500;
+    if (error.message.includes('reached limit')) status = 429;
+    else if (error.message.includes('Insufficient stock')) status = 422;
     res.status(status).json({ message: error.message });
   }
 };

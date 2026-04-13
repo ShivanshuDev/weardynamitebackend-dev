@@ -93,6 +93,22 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
   const { items, address_id: addressId, payment_method: paymentMethod, coupon_code: couponCode, customer_details, shipping_address } = data;
   if (!items?.length) throw new Error('No items in order');
 
+  // 0. Rate Limit Check: 4 orders in 60 minutes
+  const oneHourAgo = Date.now() - 3600000;
+  const { Items: recentOrders } = await docClient.send(new QueryCommand({
+    TableName: MAIN_TABLE,
+    IndexName: 'GSI1',
+    KeyConditionExpression: 'GSI1PK = :pk AND GSI1SK >= :sk',
+    ExpressionAttributeValues: { 
+      ':pk': `USER#${userId}`, 
+      ':sk': `${oneHourAgo}#` 
+    }
+  }));
+
+  if (recentOrders && recentOrders.length >= 4) {
+    throw new Error('try after some reached limit to order max item in one hour');
+  }
+
   const orderId = `WDT${Math.floor(10000000 + Math.random() * 90000000)}`;
   const orderNumber = orderId; // Using the WDT ID as the official order number
   const now = Date.now();

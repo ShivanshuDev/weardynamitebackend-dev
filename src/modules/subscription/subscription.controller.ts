@@ -9,12 +9,17 @@ export const handleSubscribe = async (req: Request, res: Response) => {
   }
 
   try {
-    const record = await subscriptionService.subscribe({ email, name, phone });
+    const identifier = (req as any).user?.id || req.ip || email;
+    const record = await subscriptionService.subscribe({ email, name, phone, identifier });
     return res.status(200).json({ 
       message: 'You are now subscribed to the Dynamite Club', 
       data: record 
     });
   } catch (error: any) {
+    if (error.message.includes('reached limit')) {
+      return res.status(429).json({ message: error.message });
+    }
+    
     // Handling Transactional Uniqueness Failures
     if (error.name === 'TransactionCanceledException') {
       const reasons = error.CancellationReasons || [];

@@ -88,7 +88,8 @@ export const placeOrder = async (req: AuthRequest, res: Response) => {
     const order = await OrderService.placeOrder(userId, req.body);
     res.status(201).json(order); 
   } catch (e: any) { 
-    res.status(400).json({ message: e.message }); 
+    const status = e.message.includes('reached limit') ? 429 : 400;
+    res.status(status).json({ message: e.message }); 
   }
 };
 
