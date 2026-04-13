@@ -35,11 +35,16 @@ export class PDFService {
         .moveDown();
 
       // --- 2. ORDER INFO ---
+      const orderDate = new Date(order.created_at || order.date);
+      const formattedDate = !isNaN(orderDate.getTime()) 
+        ? `${String(orderDate.getDate()).padStart(2, '0')}/${String(orderDate.getMonth() + 1).padStart(2, '0')}/${orderDate.getFullYear()}`
+        : '-';
+
       doc
         .fillColor('#000000')
         .fontSize(10)
         .text(`Order ID: ${order.order_id || order.id}`, 50, 140)
-        .text(`Order Date: ${new Date(order.created_at || order.date).toLocaleDateString()}`, 50, 155)
+        .text(`Order Date: ${formattedDate}`, 50, 155)
         .text(`Payment Method: ${order.payment_method === 'COD' ? 'Cash on Delivery' : 'Online Payment'}`, 50, 170)
         .moveDown();
 
@@ -79,14 +84,16 @@ export class PDFService {
       
       const items = order.items || [];
       items.forEach((item: any, i: number) => {
-        const taxable = (item.price * item.quantity) / 1.18;
+        // Use the proportional taxable value or item price
+        // Since the order summary already has final figures, we use those for the footer.
+        // For individual items, we show gross price as per storefront.
         doc.text(`${i + 1}`, 50, tableY);
         doc.text(`${item.product_name || item.name}`, 80, tableY);
         doc.fontSize(8).fillColor('#666666').text(`Size: ${item.size} | Color: ${item.color}`, 80, tableY + 12).fillColor('#000000').fontSize(9);
         doc.text(`${item.quantity}`, 280, tableY, { align: 'center', width: 40 });
-        doc.text(`${item.price.toLocaleString()}`, 330, tableY, { align: 'right', width: 60 });
-        doc.text(`${taxable.toFixed(2)}`, 400, tableY, { align: 'right', width: 60 });
-        doc.text(`${(item.price * item.quantity).toLocaleString()}`, 470, tableY, { align: 'right', width: 70 });
+        doc.text(`₹${item.price.toLocaleString()}`, 330, tableY, { align: 'right', width: 60 });
+        doc.text('-', 400, tableY, { align: 'right', width: 60 }); // Taxable individual hidden to avoid complexity
+        doc.text(`₹${(item.price * item.quantity).toLocaleString()}`, 470, tableY, { align: 'right', width: 70 });
         
         tableY += 35;
       });
@@ -95,13 +102,15 @@ export class PDFService {
 
       // --- 5. SUMMARY ---
       tableY += 20;
-      const totalAmount = order.total_amount || 0;
-      const taxableValue = totalAmount / 1.18;
-      const cgst = (taxableValue * 0.09);
-      const sgst = (taxableValue * 0.09);
+      const subtotal = order.subtotal || 0;
+      const discount = order.discount_total || 0;
+      const taxRate = order.tax_percent || 0;
+      const cgst = order.cgst || 0;
+      const sgst = order.sgst || 0;
+      const taxableValue = subtotal - discount - (order.tax_total || 0);
 
       const summaryX = 350;
-      doc.fontSize(10).font('Helvetica-Bold').text('Summary', summaryX, tableY);
+      doc.fontSize(10).font('Helvetica-Bold').text('Order Summary', summaryX, tableY);
       
       const drawRow = (label: string, value: string, y: number, bold = false) => {
         doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
@@ -109,14 +118,17 @@ export class PDFService {
         doc.text(value, 470, y, { align: 'right', width: 70 });
       };
 
-      drawRow('Total Taxable Value:', taxableValue.toFixed(2), tableY + 20);
-      drawRow('CGST (9%):', cgst.toFixed(2), tableY + 35);
-      drawRow('SGST (9%):', sgst.toFixed(2), tableY + 50);
-      drawRow('Shipping:', (order.shipping_total || 0).toString(), tableY + 65);
-      drawRow('Discount:', (order.discount_total || 0).toString(), tableY + 80);
+      drawRow('Subtotal (Gross):', subtotal.toLocaleString(), tableY + 20);
+      if (discount > 0) {
+        drawRow('Discount Applied:', `(-) ${discount.toLocaleString()}`, tableY + 35);
+      }
+      drawRow('Total Taxable Value:', taxableValue.toFixed(2), tableY + 50);
+      drawRow(`CGST (${(taxRate / 2).toFixed(1)}%):`, cgst.toLocaleString(), tableY + 65);
+      drawRow(`SGST (${(taxRate / 2).toFixed(1)}%):`, sgst.toLocaleString(), tableY + 80);
+      drawRow('Shipping:', (order.shipping_total || 0) > 0 ? (order.shipping_total || 0).toLocaleString() : 'FREE', tableY + 95);
       
-      doc.strokeColor('#000000').lineWidth(1).moveTo(summaryX, tableY + 95).lineTo(550, tableY + 95).stroke();
-      drawRow('Grand Total:', `INR ${totalAmount.toLocaleString()}`, tableY + 105, true);
+      doc.strokeColor('#000000').lineWidth(1).moveTo(summaryX, tableY + 110).lineTo(550, tableY + 110).stroke();
+      drawRow('Total Payable:', `INR ${(order.total_amount || 0).toLocaleString()}`, tableY + 120, true);
 
       // --- 6. FOOTER ---
       const footerY = 700;

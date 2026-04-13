@@ -56,6 +56,8 @@ export interface Product {
   image?: string;
   isFreshArrival?: boolean;
   isMostPopular?: boolean;
+  isShippingApplicable: boolean;
+  shippingCost: number;
   created_at: number;
   created_by: string;
   updated_at: number;
@@ -154,6 +156,8 @@ export const createProduct = async (
 
     isFreshArrival: !!data.isFreshArrival,
     isMostPopular: !!data.isMostPopular,
+    isShippingApplicable: !!data.isShippingApplicable,
+    shippingCost: Number(data.shippingCost) || 0,
 
     created_at: now,
     created_by: data.user_info || 'system',
@@ -426,6 +430,8 @@ export const updateProduct = async (
     'codCouponApplicable',
     'isFreshArrival',
     'isMostPopular',
+    'isShippingApplicable',
+    'shippingCost',
     'aboutThisItem'
   ];
 

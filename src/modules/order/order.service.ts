@@ -4,6 +4,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { addTransaction, updateDashboardStats } from '../ledger/ledger.service';
 import { NotificationService } from '../../utils/notificationService';
 import { getProfile } from '../user/user.service';
+import { PromotionEngine, CartItem } from '../../utils/promotionEngine';
+import { cache } from '../../utils/redisClient';
 
 // ─── Cart ────────────────────────────────────────────────────────────────────
 
@@ -109,6 +111,9 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
       Key: { PK: `PRODUCT#${item.productId}`, SK: 'METADATA' } 
     }));
     
+    // Temporarily attach product metadata to the item for the promo calculation step
+    (item as any).__productMetadata = product;
+    
     if (!product) throw new Error(`Product ${item.productId} not found`);
 
     // --- VARIANT SPECIFIC STOCK CHECK ---
@@ -168,7 +173,12 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
         // Use list_append and specific path to decrement only that size's stock
         UpdateExpression: `SET variants[${variantIndex}].sizes[${sizeIndex}].stock = variants[${variantIndex}].sizes[${sizeIndex}].stock - :qty, 
                            available_stock = available_stock - :qty, 
+                           current_stock = current_stock - :qty,
+                           #stk = #stk - :qty,
                            updatedAt = :now`,
+        ExpressionAttributeNames: {
+          '#stk': 'stock'
+        },
         ExpressionAttributeValues: { 
           ':qty': item.quantity, 
           ':now': now 
@@ -178,10 +188,23 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
     });
   }
 
-  // 2. Calculate Totals
-  if (couponCode) discountTotal += (subtotal - discountTotal) * 0.15; // Placeholder coupon logic
-  
-  // First-time user discount check
+  // 2. Calculate Totals via PromotionEngine
+  const promoItems: CartItem[] = items.map(item => {
+    // Find the ACTUAL product metadata we fetched earlier
+    const product = (item as any).__productMetadata;
+    return {
+      productId: item.productId,
+      price: item.price,
+      quantity: item.quantity,
+      taxonomy: product?.taxonomy,
+      promotionType: product?.promotionType,
+      isTaxable: product?.isTaxable,
+      taxPercent: product?.taxPercent,
+      isShippingApplicable: product?.isShippingApplicable,
+      shippingCost: product?.shippingCost
+    };
+  });
+
   const { Items: userOrders } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
@@ -189,14 +212,15 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
     ExpressionAttributeValues: { ':pk': `USER#${userId}` },
     Limit: 1
   }));
-  
-  if (!userOrders || userOrders.length === 0) {
-    discountTotal += (subtotal - discountTotal) * 0.10;
-  }
+  const isFirstTimeUser = !userOrders || userOrders.length === 0;
 
-  const shipping = subtotal > 5000 ? 0 : 150;
-  taxTotal = Math.round((subtotal - discountTotal) * 0.18 * 100) / 100; // 18% GST
-  const totalAmount = Math.round((subtotal - discountTotal + shipping + taxTotal) * 100) / 100;
+  const promoSummary = PromotionEngine.calculate(promoItems, { 
+    couponCode, 
+    isFirstTimeUser 
+  });
+
+  const shipping = promoSummary.shippingTotal;
+  const totalAmount = promoSummary.total; // PromotionEngine already added shippingTotal to total
 
   // 3. Create Order Summary
   const orderSummary = {
@@ -209,9 +233,13 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
     payment_method: paymentMethod,
     status: 'Pending',
     payment_status: paymentMethod === 'COD' ? 'Pending' : 'Awaiting Payment',
-    subtotal,
-    discount_total: discountTotal,
-    tax_total: taxTotal,
+    subtotal: promoSummary.subtotal,
+    discount_total: promoSummary.discountTotal,
+    tax_total: promoSummary.taxTotal,
+    cgst: promoSummary.cgst,
+    sgst: promoSummary.sgst,
+    tax_percent: promoSummary.taxPercent,
+    applied_promos: promoSummary.appliedPromos,
     shipping_total: shipping,
     total_amount: totalAmount,
     coupon_code: couponCode,
@@ -247,6 +275,20 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
   // 4. Finalize Transaction
   await docClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
   
+  // Real-time Cache Invalidation for affected products
+  try {
+    const cachePats = ['products:*'];
+    for (const item of items) {
+      cachePats.push(`product:${item.productId}`);
+    }
+    await Promise.all([
+      cache.delPattern('products:*'),
+      ...items.map(item => cache.del(`product:${item.productId}`))
+    ]);
+  } catch (err) {
+    console.warn('[CACHE ERROR] Failed to invalidate product cache after order:', err);
+  }
+
   // High-Performance Event: Atomic Dashboard increment
   await updateDashboardStats({ orders: 1, revenue: totalAmount });
 

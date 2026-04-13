@@ -1,14 +1,19 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { S3Client } from '@aws-sdk/client-s3';
+import { SESv2Client } from '@aws-sdk/client-sesv2';
 
-const REGION = process.env.AWS_REGION || 'ap-south-1';
+const REGION = process.env.SES_REGION || process.env.AWS_REGION || 'ap-southeast-2';
 
 const dbClient = new DynamoDBClient({
   region: REGION,
 });
 
 export const s3Client = new S3Client({
+  region: REGION,
+});
+
+export const sesClient = new SESv2Client({
   region: REGION,
 });
 

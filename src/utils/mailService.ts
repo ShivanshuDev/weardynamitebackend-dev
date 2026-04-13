@@ -2,18 +2,18 @@ import nodemailer from 'nodemailer';
 import path from 'path';
 import PDFDocument from 'pdfkit';
 import axios from 'axios';
+import { SendEmailCommand } from '@aws-sdk/client-sesv2';
+import { sesClient } from './awsClient';
 
 /**
  * MailService: Handles high-fidelity, responsive communications for WearDynamite.
  */
 export class MailService {
   private static transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD,
-    },
+    SES: { sesClient, SendEmailCommand },
   });
+
+  private static DEFAULT_FROM = `"WearDynamite" <${process.env.SES_FROM_EMAIL || 'noreply@weardynamite.com'}>`;
 
   private static getSignatureLogoPath() {
     // Return absolute path to the signature logo relative to this file
@@ -29,7 +29,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"WearDynamite" <${process.env.GMAIL_USER}>`,
+        from: MailService.DEFAULT_FROM,
         to,
         subject: 'Welcome to the Tribe - WearDynamite 🔥',
         html,
@@ -103,7 +103,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"WearDynamite" <${process.env.GMAIL_USER}>`,
+        from: MailService.DEFAULT_FROM,
         to,
         subject: 'You are now a VIP - Welcome to the Dynamite Club 🔥',
         html,
@@ -183,7 +183,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"WearDynamite" <${process.env.GMAIL_USER}>`,
+        from: MailService.DEFAULT_FROM,
         to,
         subject: `Order Confirmed: #${order.order_number} 🔥`,
         html,
@@ -204,7 +204,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"WearDynamite" <${process.env.GMAIL_USER}>`,
+        from: MailService.DEFAULT_FROM,
         to,
         subject: `Order Update: #${order.order_number} - ${status} 📦`,
         html,
@@ -225,7 +225,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"WearDynamite" <${process.env.GMAIL_USER}>`,
+        from: MailService.DEFAULT_FROM,
         to,
         subject: `NEW DROP: ${product.product_name} 🔥`,
         html,
@@ -339,7 +339,7 @@ export class MailService {
       const logoPath = this.getSignatureLogoPath();
 
       await this.transporter.sendMail({
-        from: `"WearDynamite Personnel" <${process.env.GMAIL_USER}>`,
+        from: `"WearDynamite Personnel" <${process.env.SES_FROM_EMAIL || 'noreply@weardynamite.com'}>`,
         to,
         subject: 'Official Onboarding Confirmation - Personnel Vault 🔥',
         html,
@@ -389,7 +389,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"WearDynamite" <${process.env.GMAIL_USER}>`,
+        from: MailService.DEFAULT_FROM,
         to,
         subject: `Happy Birthday, ${name}! 🎈`,
         html,
@@ -420,7 +420,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"WearDynamite Vault" <${process.env.GMAIL_USER}>`,
+        from: `"WearDynamite Vault" <${process.env.SES_FROM_EMAIL || 'noreply@weardynamite.com'}>`,
         to,
         subject: `Payment Successful: ${data.month} Disbursement 🔥`,
         html,
@@ -441,7 +441,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"WearDynamite Personnel" <${process.env.GMAIL_USER}>`,
+        from: `"WearDynamite Personnel" <${process.env.SES_FROM_EMAIL || 'noreply@weardynamite.com'}>`,
         to,
         subject: `Institutional Statement: Payout History ✨`,
         html,
@@ -464,7 +464,7 @@ export class MailService {
 
     try {
       const info = await this.transporter.sendMail({
-        from: `"WearDynamite" <${process.env.GMAIL_USER}>`,
+        from: MailService.DEFAULT_FROM,
         to,
         subject: `${title} 🔥`,
         html,
@@ -587,10 +587,32 @@ export class MailService {
             <p style="font-size: 12px; font-weight: 900; color: #999; text-transform: uppercase; margin-bottom: 15px;">Your Items</p>
             ${itemsHtml}
           </div>
-          <div style="margin: 30px 0; padding: 20px; background: #f9f9f9; border-radius: 12px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-               <span style="color: #666; font-size: 14px;">Total Amount</span>
-               <span style="font-size: 18px; font-weight: 900;">₹${order.total_amount?.toLocaleString()}</span>
+          <div style="margin: 30px 0; padding: 25px; background: #f9f9f9; border-radius: 20px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: #666; font-size: 13px;">
+               <span>Subtotal (Gross)</span>
+               <span>₹${(order.subtotal || 0).toLocaleString()}</span>
+            </div>
+            ${order.discount_total > 0 ? `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: #e11d48; font-size: 13px; font-weight: 900;">
+               <span>Discount Applied</span>
+               <span>-₹${order.discount_total.toLocaleString()}</span>
+            </div>` : ''}
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: #666; font-size: 13px;">
+               <span>CGST (${(order.tax_percent || 18) / 2}%)</span>
+               <span>₹${(order.cgst || 0).toLocaleString()}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: #666; font-size: 13px;">
+               <span>SGST (${(order.tax_percent || 18) / 2}%)</span>
+               <span>₹${(order.sgst || 0).toLocaleString()}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 12px; color: #666; font-size: 13px;">
+               <span>Shipping</span>
+               <span>${order.shipping_total > 0 ? `₹${order.shipping_total.toLocaleString()}` : 'FREE'}</span>
+            </div>
+            <div style="height: 1px; background: #eee; margin: 15px 0;"></div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+               <span style="font-weight: 900; font-size: 14px; text-transform: uppercase;">Total Settlement</span>
+               <span style="font-size: 20px; font-weight: 900; color: #000;">₹${order.total_amount?.toLocaleString()}</span>
             </div>
           </div>
           <a href="https://weardynamite.com/profile/orders" style="display: inline-block; padding: 15px 30px; background: #000; color: #fff; text-decoration: none; border-radius: 10px; font-weight: 900; font-size: 14px; text-transform: uppercase;">Track My Order</a>
@@ -608,7 +630,7 @@ export class MailService {
     
     try {
       await this.transporter.sendMail({
-        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.GMAIL_USER}>`,
+        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.SES_FROM_EMAIL || 'noreply@weardynamite.com'}>`,
         to: 'admin@weardynamite.com',
         subject,
         html,
@@ -633,7 +655,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.GMAIL_USER}>`,
+        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.SES_FROM_EMAIL || 'noreply@weardynamite.com'}>`,
         to,
         subject,
         html,
@@ -658,7 +680,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.GMAIL_USER}>`,
+        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.SES_FROM_EMAIL || 'noreply@weardynamite.com'}>`,
         to,
         subject,
         html,
@@ -683,7 +705,7 @@ export class MailService {
     
     try {
       await this.transporter.sendMail({
-        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.GMAIL_USER}>`,
+        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.SES_FROM_EMAIL || 'noreply@weardynamite.com'}>`,
         to: 'admin@weardynamite.com',
         subject,
         html,
@@ -708,7 +730,7 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.GMAIL_USER}>`,
+        from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.SES_FROM_EMAIL || 'noreply@weardynamite.com'}>`,
         to,
         subject,
         html,
@@ -898,5 +920,43 @@ export class MailService {
         </div>
       </div>
     `;
+  }
+
+  /**
+   * Helper to send a simple OTP email using our premium design system
+   */
+  static async sendOtpEmail(to: string, otp: string) {
+    const html = `
+      <div style="font-family: 'Inter', Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 40px;">
+        <div style="max-width: 500px; margin: auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.05); border: 1px solid #edf2f7;">
+          <div style="background: black; padding: 30px; text-align: center;">
+            <img src="https://weardynamite.com/logo.png" style="width: 120px;" alt="WearDynamite">
+          </div>
+          <div style="padding: 40px; text-align: center;">
+            <h1 style="font-size: 24px; font-weight: 900; margin-bottom: 20px; color: #000; text-transform: uppercase;">Verify Your Identity</h1>
+            <p style="font-size: 16px; color: #4a5568; line-height: 1.8; margin-bottom: 30px;">Use the code below to complete your login or registration.</p>
+            <div style="font-size: 36px; font-weight: 900; background: #f1f5f9; padding: 20px; border-radius: 12px; color: #000; letter-spacing: 5px; margin-bottom: 30px;">
+              ${otp}
+            </div>
+            <p style="font-size: 14px; color: #718096;">This code is valid for 10 minutes. If you did not request this, please ignore this email.</p>
+          </div>
+          <div style="padding: 20px; background: #000; color: white; text-align: center; font-size: 10px; font-weight: 900; text-transform: uppercase;">
+            Institutional Grade Luxury Streetwear
+          </div>
+        </div>
+      </div>
+    `;
+
+    try {
+      await this.transporter.sendMail({
+        from: MailService.DEFAULT_FROM,
+        to,
+        subject: 'Your Verification Code - WearDynamite 🔥',
+        html,
+      });
+      console.log(`[MAIL SUCCESS] OTP email sent to: ${to}`);
+    } catch (error) {
+      console.error(`[MAIL ERROR] Failed to send OTP email to ${to}:`, error);
+    }
   }
 }

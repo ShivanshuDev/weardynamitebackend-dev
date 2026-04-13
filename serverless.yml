@@ -9,6 +9,8 @@ provider:
   
   environment:
     NODE_ENV: ${self:provider.stage}
+    SES_REGION: ${self:provider.region}
+    SES_FROM_EMAIL: "noreply@weardynamite.com"
 
   iam:
     role:
@@ -27,6 +29,11 @@ provider:
           Action:
             - "s3:*"
           Resource: "arn:aws:s3:::*"
+        - Effect: "Allow"
+          Action:
+            - "ses:SendEmail"
+            - "ses:SendRawEmail"
+          Resource: "*"
 
 custom:
   dotenv:
