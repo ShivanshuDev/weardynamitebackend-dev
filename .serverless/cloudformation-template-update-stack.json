@@ -154,6 +154,14 @@
                     "s3:*"
                   ],
                   "Resource": "arn:aws:s3:::*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ses:SendEmail",
+                    "ses:SendRawEmail"
+                  ],
+                  "Resource": "*"
                 }
               ]
             }
@@ -182,7 +190,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/weardynamite-backend/dev/1776022567707-2026-04-12T19:36:07.707Z/weardynamite-backend.zip"
+          "S3Key": "serverless/weardynamite-backend/dev/1776178567425-2026-04-14T14:56:07.425Z/weardynamite-backend.zip"
         },
         "Handler": "src/handler.handler",
         "Runtime": "nodejs20.x",
@@ -192,6 +200,8 @@
         "Environment": {
           "Variables": {
             "NODE_ENV": "dev",
+            "SES_REGION": "ap-southeast-2",
+            "SES_FROM_EMAIL": "noreply@weardynamite.com",
             "PORT": "5001",
             "JWT_SECRET": "weardynamite_super_secret_jwt_key_2026",
             "JWT_EXPIRES_IN": "1d",
@@ -209,7 +219,8 @@
             "BACKEND_URL": "http://localhost:5001",
             "GMAIL_USER": "weardynamitehub@gmail.com",
             "GMAIL_APP_PASSWORD": "sslt igva aohs cskh",
-            "REDIS_URL": "rediss://default:gQAAAAAAAXrSAAIncDI4NzlkYTcwZDA1ZmY0OTViODU5MzFlZDNiMGU3ZGY1NHAyOTY5Nzg@pet-amoeba-96978.upstash.io:6379"
+            "REDIS_URL": "rediss://default:gQAAAAAAAXrSAAIncDI4NzlkYTcwZDA1ZmY0OTViODU5MzFlZDNiMGU3ZGY1NHAyOTY5Nzg@pet-amoeba-96978.upstash.io:6379",
+            "CLOUDFRONT_URL": "https://weardynamite-dev-assets.s3.ap-southeast-2.amazonaws.com"
           }
         },
         "Role": {
@@ -223,14 +234,14 @@
         "ApiLogGroup"
       ]
     },
-    "ApiLambdaVersionnoQhSIG2TijFZ2BEfc99UQp6qbipm0ialC92ZiD7PtY": {
+    "ApiLambdaVersion5Ry6k0lbt0dbO59BF0qE2Ty36fnxZwT08j8SsYVQ5o": {
       "Type": "AWS::Lambda::Version",
       "DeletionPolicy": "Retain",
       "Properties": {
         "FunctionName": {
           "Ref": "ApiLambdaFunction"
         },
-        "CodeSha256": "TB2KOxNtEGVj0pjOBytYUVfSVPXWTjef2A8+OAzVkzg="
+        "CodeSha256": "gnWZ05rWJoK7M6sv91oY3sXz4xYEe7QO/iQSOEk4/V4="
       }
     },
     "HttpApi": {
@@ -341,7 +352,7 @@
     "ApiLambdaFunctionQualifiedArn": {
       "Description": "Current Lambda function version",
       "Value": {
-        "Ref": "ApiLambdaVersionnoQhSIG2TijFZ2BEfc99UQp6qbipm0ialC92ZiD7PtY"
+        "Ref": "ApiLambdaVersion5Ry6k0lbt0dbO59BF0qE2Ty36fnxZwT08j8SsYVQ5o"
       },
       "Export": {
         "Name": "sls-weardynamite-backend-dev-ApiLambdaFunctionQualifiedArn"

@@ -30,7 +30,7 @@ export const addReview = async (userId: string, productId: string, orderId: stri
   if (!order) throw new Error('Order not found');
   if (order.user_id !== userId) throw new Error('Unauthorized: Order does not belong to user');
   if (order.status !== 'Delivered') throw new Error('Reviews are only allowed after the item is Delivered');
-  
+
   // 2. Verify Product is in Order
   const hasProduct = order.items?.some((i: any) => i.product_id === productId);
   if (!hasProduct) throw new Error('Product not found in this order');
@@ -63,7 +63,7 @@ export const updateReviewStatus = async (reviewId: string, status: string) => {
     FilterExpression: 'reviewId = :rid',
     ExpressionAttributeValues: { ':pk': 'REVIEW', ':rid': reviewId }
   }));
-  
+
   const existing = (Items || [])[0];
   if (!existing) throw new Error('Review not found');
 
@@ -80,7 +80,7 @@ export const deleteReview = async (reviewId: string) => {
     FilterExpression: 'reviewId = :rid',
     ExpressionAttributeValues: { ':pk': 'REVIEW', ':rid': reviewId }
   }));
-  
+
   const existing = (Items || [])[0];
   if (!existing) throw new Error('Review not found');
 

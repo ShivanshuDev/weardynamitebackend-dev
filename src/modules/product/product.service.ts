@@ -47,7 +47,7 @@ export interface Product {
   codCouponApplicable: boolean;
   specs?: any[];
   aboutThisItem?: string[];
-  
+
   // Legacy or Internal mapping
   current_stock: number;
   available_stock: number;
@@ -78,10 +78,10 @@ export const createProduct = async (
 
   // ✅ Strict Validation: Ensure all mandatory fields are present
   const requiredFields = [
-    'product_name', 'brand', 'category', 'subCategory', 'gender', 
+    'product_name', 'brand', 'category', 'subCategory', 'gender',
     'description', 'mrp', 'salePrice', 'sku', 'barcode'
   ];
-  
+
   for (const field of requiredFields) {
     const value = (data as any)[field] || (data as any)[field.replace(/_([a-z])/g, (g) => g[1].toUpperCase())];
     if (!value && value !== 0) {
@@ -126,18 +126,18 @@ export const createProduct = async (
     barcode: data.barcode,
     image: data.image || data.images?.[0],
     images: data.images || [],
-    
+
     stock: Number(data.stock) || Number(data.current_stock) || 0,
     current_stock: Number(data.current_stock) || Number(data.stock) || 0,
     available_stock: Number(data.available_stock) || Number(data.stock) || 0,
     lowStockAlert: Number(data.lowStockAlert) || 10,
-    
+
     primaryColor: data.primaryColor || (data as any).color,
     primarySize: data.primarySize || (data as any).size,
     fit: data.fit,
     neckType: data.neckType,
     occasion: data.occasion,
-    
+
     variants: data.variants || [],
     keywords: data.keywords || [],
     seoTitle: data.seoTitle,
@@ -225,12 +225,12 @@ export const listProducts = async (filters: any = {}) => {
     queryParams.IndexName = 'GSI1';
     queryParams.KeyConditionExpression = 'GSI1PK = :cat';
     queryParams.ExpressionAttributeValues = { ':cat': `CAT#${category}` };
-    
+
     if (status) {
       queryParams.KeyConditionExpression += ' AND GSI1SK = :stat';
       queryParams.ExpressionAttributeValues[':stat'] = `STATUS#${status}`;
     }
-    
+
     if (subCategory) {
       queryParams.FilterExpression = '#subCategory = :sub';
       queryParams.ExpressionAttributeNames = { '#subCategory': 'subCategory' };
@@ -241,7 +241,7 @@ export const listProducts = async (filters: any = {}) => {
     queryParams.IndexName = 'GSI4';
     queryParams.KeyConditionExpression = 'GSI4PK = :pk';
     queryParams.ExpressionAttributeValues = { ':pk': 'PRODUCT' };
-    
+
     const filters_arr = [];
     const names: any = {};
     const values = queryParams.ExpressionAttributeValues;
@@ -349,7 +349,7 @@ export const getBestSellers = async () => {
       Limit: 20
     })
   );
-  
+
   const result = Items || [];
   await cache.set(cacheKey, result, 600); // Cache for 10 mins
   return result;
@@ -370,7 +370,7 @@ export const updateProduct = async (
 
   // ✅ Validation: Prevent removing mandatory fields during update
   const requiredFields = [
-    'product_name', 'brand', 'category', 'subCategory', 'gender', 
+    'product_name', 'brand', 'category', 'subCategory', 'gender',
     'description', 'mrp', 'salePrice', 'sku', 'barcode'
   ];
 

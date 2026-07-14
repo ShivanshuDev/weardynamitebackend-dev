@@ -142,4 +142,150 @@ export class PDFService {
       doc.end();
     });
   }
+
+  static async generateQuotation(quote: any): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const buffers: Buffer[] = [];
+
+      doc.on('data', buffers.push.bind(buffers));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', reject);
+
+      // Header Branding
+      const logoPath = path.resolve(process.cwd(), '..', 'logo_concept_10_signature_thread_1774216216632.png');
+      try {
+        doc.image(logoPath, 50, 45, { width: 100 });
+      } catch (e) {
+        doc.fontSize(20).font('Helvetica-Bold').text('WEAR DYNAMITE', 50, 45, { align: 'left' });
+      }
+
+      doc
+        .fillColor('#444444')
+        .fontSize(20)
+        .font('Helvetica-Bold')
+        .text('PROFORMA QUOTATION', 50, 45, { align: 'right' })
+        .fontSize(10)
+        .font('Helvetica')
+        .text('Mahalia dhermer deoria,', 50, 70, { align: 'right' })
+        .text('Uttar Pradesh 274505', 50, 85, { align: 'right' })
+        .text('Phone: +91 8543996159', 50, 100, { align: 'right' })
+        .text('GSTIN: 09ABCDE1234F1Z5', 50, 115, { align: 'right' })
+        .moveDown();
+
+      // Quotation Info & Client Info side-by-side
+      const detailsY = 140;
+      doc.fontSize(10).font('Helvetica-Bold').fillColor('#000000').text('QUOTATION ESTIMATE', 50, detailsY);
+      doc.text('CLIENT DETAILS', 300, detailsY);
+
+      const issueDate = new Date(quote.createdAt || Date.now());
+      const expiryDate = new Date(quote.expiryDate || (Date.now() + 15*24*60*60*1000));
+      
+      const format = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+
+      doc.font('Helvetica').fontSize(9).fillColor('#475569')
+        .text(`Quote ID: ${quote.quotationId}`, 50, detailsY + 20)
+        .text(`Issue Date: ${format(issueDate)}`, 50, detailsY + 35)
+        .text(`Valid Until: ${format(expiryDate)}`, 50, detailsY + 50)
+        .text(`Created By: ${quote.createdBy || 'Admin'}`, 50, detailsY + 65);
+
+      doc
+        .text(`Name: ${quote.customerName}`, 300, detailsY + 20)
+        .text(`Email: ${quote.customerEmail}`, 300, detailsY + 35)
+        .text(`Phone: ${quote.customerPhone || 'N/A'}`, 300, detailsY + 50)
+        .text(`Company: ${quote.companyName || 'N/A'}`, 300, detailsY + 65);
+
+      // Addresses
+      const addressY = detailsY + 95;
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#000000').text('Billing Address', 50, addressY);
+      doc.text('Shipping Address', 300, addressY);
+
+      const bill = quote.billingAddress || {};
+      const ship = quote.shippingAddress || {};
+
+      doc.font('Helvetica').fontSize(9).fillColor('#475569')
+        .text(`${bill.street || ''}`, 50, addressY + 15)
+        .text(`${bill.area || ''}`, 50, addressY + 28)
+        .text(`${bill.city || ''}, ${bill.state || ''} - ${bill.pincode || ''}`, 50, addressY + 41)
+        .text(`${bill.country || 'India'}`, 50, addressY + 54);
+
+      doc
+        .text(`${ship.street || ''}`, 300, addressY + 15)
+        .text(`${ship.area || ''}`, 300, addressY + 28)
+        .text(`${ship.city || ''}, ${ship.state || ''} - ${ship.pincode || ''}`, 300, addressY + 41)
+        .text(`${ship.country || 'India'}`, 300, addressY + 54);
+
+      // Table
+      let tableY = addressY + 85;
+      doc.strokeColor('#aaaaaa').lineWidth(1).moveTo(50, tableY).lineTo(550, tableY).stroke();
+      
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000');
+      doc.text('Product Description', 50, tableY + 10);
+      doc.text('Qty', 270, tableY + 10, { align: 'center', width: 40 });
+      doc.text('Unit Price', 320, tableY + 10, { align: 'right', width: 60 });
+      doc.text('GST %', 390, tableY + 10, { align: 'center', width: 50 });
+      doc.text('Total (INR)', 450, tableY + 10, { align: 'right', width: 100 });
+
+      tableY += 25;
+      doc.font('Helvetica').fontSize(8.5).fillColor('#475569');
+
+      (quote.items || []).forEach((item: any) => {
+        doc.fillColor('#0f172a').font('Helvetica-Bold').text(`${item.productName}`, 50, tableY);
+        doc.fillColor('#64748b').font('Helvetica').fontSize(7.5).text(`Size: ${item.size} | Color: ${item.color || 'Std'}${item.customizationDetails && item.customizationDetails.type && item.customizationDetails.type !== 'None' ? ` | Custom: ${item.customizationDetails.type} (${item.customizationDetails.notes || ''})` : ''}`, 50, tableY + 11).fontSize(8.5);
+        
+        doc.text(`${item.quantity}`, 270, tableY, { align: 'center', width: 40 });
+        doc.text(`₹${Number(item.unitPrice).toFixed(2)}`, 320, tableY, { align: 'right', width: 60 });
+        doc.text(`${item.taxPercent}%`, 390, tableY, { align: 'center', width: 50 });
+        doc.text(`₹${Number(item.total).toFixed(2)}`, 450, tableY, { align: 'right', width: 100 });
+        
+        tableY += 28;
+      });
+
+      doc.strokeColor('#aaaaaa').lineWidth(1).moveTo(50, tableY).lineTo(550, tableY).stroke();
+
+      // Summary Totals
+      tableY += 15;
+      const summaryX = 350;
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000').text('Estimate Summary', summaryX, tableY);
+      
+      const drawRow = (label: string, value: string, rowY: number, bold = false) => {
+        doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5).fillColor(bold ? '#2563eb' : '#475569');
+        doc.text(label, summaryX, rowY);
+        doc.text(value, 450, rowY, { align: 'right', width: 100 });
+      };
+
+      drawRow('Subtotal:', `₹${Number(quote.subtotal).toFixed(2)}`, tableY + 15);
+      drawRow('Discount:', `(-) ₹${Number(quote.discountTotal).toFixed(2)}`, tableY + 28);
+      
+      let taxLabel = 'GST Tax (Excl):';
+      if (quote.isTaxApplicable === false) {
+        taxLabel = 'GST Tax (N/A):';
+      } else if (quote.isTaxIncluded === true) {
+        taxLabel = 'GST Tax (Incl):';
+      }
+      drawRow(taxLabel, `₹${Number(quote.taxTotal).toFixed(2)}`, tableY + 41);
+      drawRow('Shipping:', `₹${Number(quote.shippingCharges).toFixed(2)}`, tableY + 54);
+
+      doc.strokeColor('#e2e8f0').lineWidth(1).moveTo(summaryX, tableY + 68).lineTo(550, tableY + 68).stroke();
+      drawRow('Grand Total:', `INR ${Number(quote.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, tableY + 74, true);
+
+      // Business terms bottom left
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#000000').text('Specifications:', 50, tableY);
+      doc.font('Helvetica').fontSize(8).fillColor('#64748b')
+        .text(`Payment: ${quote.paymentTerms || '-'}`, 50, tableY + 15)
+        .text(`Delivery: ${quote.deliveryTimeline || '-'}`, 50, tableY + 28);
+      if (quote.termsConditions) {
+        doc.text(`Conditions: ${quote.termsConditions}`, 50, tableY + 41, { width: 280 });
+      }
+
+      // Footer
+      const footerY = 790;
+      doc.rect(0, footerY, 595.28, 51.89).fill('#f8fafc');
+      doc.fillColor('#94a3b8').fontSize(7.5)
+        .text('THIS IS A SYSTEM GENERATED PROFORMA ESTIMATE CREATED BY WEARDYNAMITE PRO CMS.', 50, footerY + 15, { align: 'center' })
+        .text('IT DOES NOT CONSTITUTE A TAX INVOICE. VALUES ARE ESTIMATIVE ONLY.', 50, footerY + 27, { align: 'center' });
+
+      doc.end();
+    });
+  }
 }

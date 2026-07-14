@@ -73,9 +73,9 @@ export const toggleFavorite = async (userId: string, productId: string) => {
     TableName: MAIN_TABLE,
     Key: { PK: `USER#${userId}`, SK: `FAVORITE#${productId}` }
   }));
-  
+
   if (Item) {
-    await docClient.send(new DeleteCommand({ TableName: MAIN_TABLE, Key: { PK: `USER#${userId}`, SK: `FAVORITE#${productId}` }}));
+    await docClient.send(new DeleteCommand({ TableName: MAIN_TABLE, Key: { PK: `USER#${userId}`, SK: `FAVORITE#${productId}` } }));
     return { favorited: false };
   } else {
     await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: { PK: `USER#${userId}`, SK: `FAVORITE#${productId}`, product_id: productId, owner_id: userId } }));
@@ -99,9 +99,9 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
     KeyConditionExpression: 'GSI1PK = :pk AND GSI1SK >= :sk',
-    ExpressionAttributeValues: { 
-      ':pk': `USER#${userId}`, 
-      ':sk': `${oneHourAgo}#` 
+    ExpressionAttributeValues: {
+      ':pk': `USER#${userId}`,
+      ':sk': `${oneHourAgo}#`
     }
   }));
 
@@ -120,16 +120,16 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
   const transactItems: any[] = [];
   const processedItems: any[] = [];
 
-    // 1. Process Items & Reserve Stock
+  // 1. Process Items & Reserve Stock
   for (const item of items) {
-    const { Item: product } = await docClient.send(new GetCommand({ 
-      TableName: MAIN_TABLE, 
-      Key: { PK: `PRODUCT#${item.productId}`, SK: 'METADATA' } 
+    const { Item: product } = await docClient.send(new GetCommand({
+      TableName: MAIN_TABLE,
+      Key: { PK: `PRODUCT#${item.productId}`, SK: 'METADATA' }
     }));
-    
+
     // Temporarily attach product metadata to the item for the promo calculation step
     (item as any).__productMetadata = product;
-    
+
     if (!product) throw new Error(`Product ${item.productId} not found`);
 
     // --- VARIANT SPECIFIC STOCK CHECK ---
@@ -195,9 +195,9 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
         ExpressionAttributeNames: {
           '#stk': 'stock'
         },
-        ExpressionAttributeValues: { 
-          ':qty': item.quantity, 
-          ':now': now 
+        ExpressionAttributeValues: {
+          ':qty': item.quantity,
+          ':now': now
         },
         ConditionExpression: `variants[${variantIndex}].sizes[${sizeIndex}].stock >= :qty`
       }
@@ -230,9 +230,9 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
   }));
   const isFirstTimeUser = !userOrders || userOrders.length === 0;
 
-  const promoSummary = PromotionEngine.calculate(promoItems, { 
-    couponCode, 
-    isFirstTimeUser 
+  const promoSummary = PromotionEngine.calculate(promoItems, {
+    couponCode,
+    isFirstTimeUser
   });
 
   const shipping = promoSummary.shippingTotal;
@@ -262,7 +262,7 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
     item_count: items.length,
     created_at: now,
     updated_at: now,
-    
+
     // Snapshots: We use these names to match existing Admin Panel expectations
     customer: customer_details,
     address: shipping_address,
@@ -290,7 +290,7 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
 
   // 4. Finalize Transaction
   await docClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
-  
+
   // Real-time Cache Invalidation for affected products
   try {
     const cachePats = ['products:*'];
@@ -371,7 +371,7 @@ export const getUserOrder = async (userId: string, orderId: string) => {
  */
 export const adminListOrders = async (filters: { status?: string; search?: string }) => {
   let orders: any[] = [];
-  
+
   if (filters.status) {
     const { Items } = await docClient.send(new QueryCommand({
       TableName: MAIN_TABLE,
@@ -391,7 +391,7 @@ export const adminListOrders = async (filters: { status?: string; search?: strin
     }));
     orders = Items || [];
   }
-  
+
   return orders;
 };
 
@@ -401,14 +401,14 @@ export const adminListOrders = async (filters: { status?: string; search?: strin
 export const updateOrderStatus = async (orderId: string, status: string) => {
   const order: any = await getOrderDetail(orderId);
   const now = Date.now();
-  
+
   await docClient.send(new UpdateCommand({
     TableName: MAIN_TABLE,
     Key: { PK: `ORDER#${orderId}`, SK: 'SUMMARY' },
     UpdateExpression: 'SET #st = :status, GSI2PK = :gsi, updated_at = :now',
     ExpressionAttributeNames: { '#st': 'status' },
-    ExpressionAttributeValues: { 
-      ':status': status, 
+    ExpressionAttributeValues: {
+      ':status': status,
       ':gsi': `STATUS#${status}`,
       ':now': now
     }
@@ -422,9 +422,9 @@ export const updateOrderStatus = async (orderId: string, status: string) => {
         TableName: MAIN_TABLE,
         Key: { PK: `PRODUCT#${item.product_id}`, SK: 'METADATA' },
         UpdateExpression: 'SET totalPhysicalStock = totalPhysicalStock - :qty, updatedAt = :now',
-        ExpressionAttributeValues: { 
-          ':qty': item.quantity, 
-          ':now': now 
+        ExpressionAttributeValues: {
+          ':qty': item.quantity,
+          ':now': now
         }
       }));
     }
@@ -457,10 +457,10 @@ export const updateOrderTracking = async (orderId: string, trackingNumber: strin
     Key: { PK: `ORDER#${orderId}`, SK: 'SUMMARY' },
     UpdateExpression: 'SET tracking_number = :tn, courier = :cr, #st = :status, GSI2PK = :gsi, updated_at = :now',
     ExpressionAttributeNames: { '#st': 'status' },
-    ExpressionAttributeValues: { 
-      ':tn': trackingNumber, 
-      ':cr': courier, 
-      ':status': 'Shipped', 
+    ExpressionAttributeValues: {
+      ':tn': trackingNumber,
+      ':cr': courier,
+      ':status': 'Shipped',
       ':gsi': 'STATUS#Shipped',
       ':now': now
     }

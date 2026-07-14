@@ -23,6 +23,7 @@ import customizationRoutes from './modules/customization/customization.routes';
 import paymentRoutes from './modules/payment/payment.routes';
 import notificationRoutes from './modules/notification/notification.routes';
 import subscriptionRoutes from './modules/subscription/subscription.routes';
+import quotationRoutes from './modules/quotation/quotation.routes';
 import { initScheduler } from './utils/scheduler';
 
 const app = express();
@@ -30,17 +31,7 @@ const PORT = process.env.PORT || 3001;
 
 // ─── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors({
-  origin: [
-    'https://din4g8s0x2j11.cloudfront.net', 
-    'http://localhost:5173', 
-    'http://localhost:5174', 
-    'http://localhost:5175', 
-    'http://localhost:5177', 
-    'http://localhost:3000', 
-    "https://weardynamite.com",
-    "https://www.weardynamite.com", 
-    "http://www.weardynamite.com", 
-    "weardynamite.com"],
+  origin: true,
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
@@ -69,6 +60,7 @@ app.use('/api', customizationRoutes);     // /api/customization/print etc.
 app.use('/api/payment', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api', quotationRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {

@@ -4,7 +4,7 @@ import { MailService } from '../../utils/mailService';
 
 export const subscribe = async (data: { email: string; name?: string; phone?: string; identifier?: string }) => {
   const { email, name, phone, identifier } = data;
-  
+
   // Rate Limit Check: 3 in 90 minutes
   if (identifier) {
     const ninetyMinsAgo = Date.now() - 5400000;
@@ -12,9 +12,9 @@ export const subscribe = async (data: { email: string; name?: string; phone?: st
       TableName: MAIN_TABLE,
       IndexName: 'GSI1',
       KeyConditionExpression: 'GSI1PK = :pk AND GSI1SK >= :sk',
-      ExpressionAttributeValues: { 
-        ':pk': `RATE_LIMIT#SUBSCRIPTION#${identifier}`, 
-        ':sk': `TIME#${ninetyMinsAgo}` 
+      ExpressionAttributeValues: {
+        ':pk': `RATE_LIMIT#SUBSCRIPTION#${identifier}`,
+        ':sk': `TIME#${ninetyMinsAgo}`
       }
     }));
 
@@ -47,7 +47,7 @@ export const subscribe = async (data: { email: string; name?: string; phone?: st
     GSI1PK: 'SUBSCRIPTION',
     GSI1SK: `DATE#${now}`,
     email,
-    name: finalName, 
+    name: finalName,
     phone: phone || 'N/A',
     status: 'Active',
     emailStatus: 'Pending',
@@ -90,7 +90,7 @@ export const subscribe = async (data: { email: string; name?: string; phone?: st
   (async () => {
     try {
       const result = await MailService.sendSubscriptionConfirmation(email, finalName);
-      
+
       await docClient.send(new UpdateCommand({
         TableName: MAIN_TABLE,
         Key: { PK: `SUBSCRIPTION#${email}`, SK: 'METADATA' },

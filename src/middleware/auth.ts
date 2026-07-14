@@ -40,6 +40,14 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     }
     
     // Attach user information derived from Firebase Token
+    const isVerified = decodedToken.email_verified || decodedToken.firebase?.sign_in_provider === 'google.com';
+    
+    // Check if verification is required (ignore for social or specific bypass)
+    if (!isVerified && decodedToken.firebase?.sign_in_provider === 'password') {
+       res.status(403).json({ message: 'Email not verified. Please verify your email to access this feature.' });
+       return;
+    }
+
     req.user = {
       id: decodedToken.uid,
       firebaseUid: decodedToken.uid,

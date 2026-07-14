@@ -23,11 +23,11 @@ export const listExpenses = async (filters: { category?: string; dateFrom?: stri
 
   const { Items } = await docClient.send(new QueryCommand(cmd));
   let items = Items || [];
-  
+
   if (filters.category) {
     items = items.filter(i => i.category?.toLowerCase() === filters.category!.toLowerCase());
   }
-  
+
   return items;
 };
 
@@ -37,14 +37,14 @@ export const listExpenses = async (filters: { category?: string; dateFrom?: stri
 export const createExpense = async (data: { description: string; category: string; amount: number; date?: string }) => {
   const id = uuidv4();
   const now = new Date();
-  
+
   // High-Precision Hybrid Timing: DATE#YYYY-MM-DD#TIMESTAMP
   // This maintains backward compatibility with legacy YYYY-MM-DD queries
   // while ensuring reverse-chronological sorting within the same day.
   const dateStr = data.date || now.toISOString().split('T')[0];
   const timestamp = now.getTime();
   const gsi1sk = `DATE#${dateStr}#${timestamp}`;
-  
+
   const record = {
     PK: `EXPENSE#${id}`,
     SK: 'EXPENSE',

@@ -371,10 +371,12 @@ export class NotificationService {
         data: payload.data || {}
       };
 
+      console.log(`[FCM ATTEMPT] Sending message to token: ${token.substring(0, 10)}...`);
       const response = await firebaseAdmin.messaging().send(message);
+      console.log(`[FCM SUCCESS] Message ID: ${response}`);
       return response;
     } catch (error: any) {
-      console.error('[FCM ERROR]', error.message);
+      console.error('[FCM ERROR] Code:', error.code, 'Message:', error.message);
       
       // Auto-Purge stale tokens (NotRegistered)
       if (userId && (error.code === 'messaging/registration-token-not-registered' || error.message?.includes('NotRegistered'))) {

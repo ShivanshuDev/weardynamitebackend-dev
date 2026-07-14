@@ -7,6 +7,9 @@ provider:
   stage: ${opt:stage, 'dev'}
   timeout: 29
   
+  httpApi:
+    payload: '2.0'
+
   environment:
     NODE_ENV: ${self:provider.stage}
     SES_REGION: ${self:provider.region}

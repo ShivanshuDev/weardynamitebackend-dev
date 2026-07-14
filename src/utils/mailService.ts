@@ -4,16 +4,25 @@ import PDFDocument from 'pdfkit';
 import axios from 'axios';
 import { SendEmailCommand } from '@aws-sdk/client-sesv2';
 import { sesClient } from './awsClient';
+import { PDFService } from './pdfService';
 
 /**
  * MailService: Handles high-fidelity, responsive communications for WearDynamite.
  */
 export class MailService {
-  private static transporter = nodemailer.createTransport({
-    SES: { sesClient, SendEmailCommand },
-  });
+  private static transporter = process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD
+    ? nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_APP_PASSWORD,
+        },
+      })
+    : nodemailer.createTransport({
+        SES: { sesClient, SendEmailCommand },
+      });
 
-  private static DEFAULT_FROM = `"WearDynamite" <${process.env.SES_FROM_EMAIL || 'noreply@weardynamite.com'}>`;
+  private static DEFAULT_FROM = `"WearDynamite" <${process.env.GMAIL_USER || process.env.SES_FROM_EMAIL || 'noreply@weardynamite.com'}>`;
 
   private static getSignatureLogoPath() {
     // Return absolute path to the signature logo relative to this file
@@ -44,7 +53,7 @@ export class MailService {
   private static getWelcomeTemplate(name: string) {
     const accentColor = '#FF5F1F';
     const bgColor = '#000000';
-    
+
     return `
       <!DOCTYPE html>
       <html lang="en">
@@ -120,7 +129,7 @@ export class MailService {
   private static getSubscriptionTemplate(name: string) {
     const accentColor = '#3b82f6';
     const bgColor = '#000000';
-    
+
     return `
       <!DOCTYPE html>
       <html lang="en">
@@ -191,7 +200,7 @@ export class MailService {
       });
       console.log(`[MAIL SUCCESS] Order confirmation sent to: ${to} (Order #${order.order_number})`);
     } catch (error) {
-       console.error(`[MAIL ERROR] Failed order confirmation email to ${to}:`, error);
+      console.error(`[MAIL ERROR] Failed order confirmation email to ${to}:`, error);
     }
   }
 
@@ -212,7 +221,7 @@ export class MailService {
       });
       console.log(`[MAIL SUCCESS] Status update (${status}) sent to: ${to} (Order #${order.order_number})`);
     } catch (error) {
-       console.error(`[MAIL ERROR] Failed order status email to ${to}:`, error);
+      console.error(`[MAIL ERROR] Failed order status email to ${to}:`, error);
     }
   }
 
@@ -233,7 +242,7 @@ export class MailService {
       });
       console.log(`[MAIL SUCCESS] Product drop email sent to: ${to} (Product: ${product.product_name})`);
     } catch (error) {
-       console.error(`[MAIL ERROR] Failed product drop email to ${to}:`, error);
+      console.error(`[MAIL ERROR] Failed product drop email to ${to}:`, error);
     }
   }
 
@@ -244,19 +253,19 @@ export class MailService {
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
     const buffers: Buffer[] = [];
     doc.on('data', (chunk) => buffers.push(chunk));
-    
+
     return new Promise((resolve) => {
       doc.on('end', () => resolve(Buffer.concat(buffers)));
 
       // --- PDF CONTENT GENERATION ---
       const primaryColor = '#000000';
       const accentColor = '#3b82f6';
-      
+
       // Header Section (Aggressively Compressed)
       doc.rect(0, 0, 595.28, 90).fill(primaryColor);
       doc.fillColor('#ffffff').fontSize(20).font('Helvetica-Bold').text('PERSONNEL APPLICATION FORM', 50, 30);
       doc.fontSize(8.5).font('Helvetica').text('WEARDYNAMITE CLOTHING CO. | OFFICIAL COLLECTIVE RECORD', 50, 55, { letterSpacing: 2 });
-      
+
       // ISSUED_ON / EMP_ID
       doc.fontSize(8).text(`ISSUED_ON: ${new Date().toLocaleDateString()}`, 450, 32);
       doc.fontSize(8).font('Helvetica-Bold').text(`EMP_ID: ${employee.employeeId || 'NEW'}`, 450, 45);
@@ -265,7 +274,7 @@ export class MailService {
       let y = 115;
       doc.fillColor(primaryColor).fontSize(11).font('Helvetica-Bold').text('SECTION 01: IDENTITY & BACKGROUND', 50, y);
       doc.rect(50, y + 14, 495, 1.2).fill(accentColor);
-      
+
       y += 30;
       const drawField = (label: string, value: string, x: number, y: number) => {
         doc.fillColor('#64748b').fontSize(7).font('Helvetica-Bold').text(label.toUpperCase(), x, y);
@@ -274,15 +283,15 @@ export class MailService {
 
       drawField('Full Legal Name', employee.name, 50, y);
       drawField('Designation', employee.designation || employee.role, 300, y);
-      
+
       y += 34;
       drawField('Mother\'s Name', employee.motherName, 50, y);
       drawField('Father\'s Name', employee.fatherName, 300, y);
-      
+
       y += 34;
       drawField('Marital Status', employee.maritalStatus, 50, y);
       if (employee.maritalStatus === 'Married') drawField('Spouse Name', employee.spouseName, 300, y);
-      
+
       y += 34;
       drawField('Blood Group', employee.bloodGroup, 50, y);
       drawField('Contact Number', employee.phone, 300, y);
@@ -295,11 +304,11 @@ export class MailService {
       y += 50;
       doc.fillColor(primaryColor).fontSize(11).font('Helvetica-Bold').text('SECTION 02: PROFESSIONAL PROFILE', 50, y);
       doc.rect(50, y + 14, 495, 1.2).fill(accentColor);
-      
+
       y += 30;
       drawField('Employee Type', employee.employeeType, 50, y);
       drawField('Joining Date', employee.joinDate, 300, y);
-      
+
       y += 34;
       drawField('Exp Level', employee.experienceLevel, 50, y);
       drawField('Years of Exp', employee.experienceYears?.toString(), 300, y);
@@ -312,11 +321,11 @@ export class MailService {
       y += 50;
       doc.fillColor(primaryColor).fontSize(11).font('Helvetica-Bold').text('SECTION 03: DIGITAL KYC REGISTRY', 50, y);
       doc.rect(50, y + 14, 495, 1.2).fill(accentColor);
-      
+
       y += 30;
       drawField('Aadhaar Number', employee.aadharNumber, 50, y);
       drawField('PAN Card Number', employee.panNumber, 300, y);
-      
+
       y += 34;
       drawField('Driving License', employee.drivingLicense, 50, y);
 
@@ -397,7 +406,7 @@ export class MailService {
       });
       console.log(`[MAIL SUCCESS] Birthday wish sent to: ${to} (${name})`);
     } catch (error) {
-       console.error(`[MAIL ERROR] Failed birthday email to ${to}:`, error);
+      console.error(`[MAIL ERROR] Failed birthday email to ${to}:`, error);
     }
   }
 
@@ -561,7 +570,7 @@ export class MailService {
   private static getOrderConfirmedTemplate(name: string, order: any, items: any[]) {
     const itemsHtml = items.map(item => {
       const imageUrl = this.resolveImageUrl(item.thumbnail || item.product?.image || '');
-      
+
       return `
       <div style="display: flex; align-items: center; padding: 15px 0; border-bottom: 1px solid #eee;">
         <img src="${imageUrl}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; margin-right: 15px;">
@@ -627,7 +636,7 @@ export class MailService {
   static async sendBulkInquiryNotification(inquiry: any) {
     const html = this.getBulkInquiryAdminTemplate(inquiry);
     const subject = `🔥 NEW LEAD: ${inquiry.orgName} - ${inquiry.orderType || 'General'}`;
-    
+
     try {
       await this.transporter.sendMail({
         from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.SES_FROM_EMAIL || 'noreply@weardynamite.com'}>`,
@@ -702,7 +711,7 @@ export class MailService {
   static async sendStandardInquiryAdminNotification(inquiry: any) {
     const html = this.getStandardInquiryAdminTemplate(inquiry);
     const subject = `📩 NEW MESSAGE: From ${inquiry.fullName || inquiry.name}`;
-    
+
     try {
       await this.transporter.sendMail({
         from: `"${process.env.APP_NAME || 'WearDynamite'}" <${process.env.SES_FROM_EMAIL || 'noreply@weardynamite.com'}>`,
@@ -808,7 +817,7 @@ export class MailService {
   private static getInquiryStatusUpdateTemplate(name: string, inquiry: any, status: string) {
     let statusText = `The status of your inquiry has been updated to ${status}.`;
     let subText = "Our team is currently processing your requirements.";
-    
+
     if (status.toUpperCase() === 'WORKING' || status.toUpperCase() === 'IN PROGRESS') {
       statusText = "We're currently working on your proposal.";
       subText = "Our design and production leads are finalizing the details for your custom project.";
@@ -896,7 +905,7 @@ export class MailService {
         <img src="${image}" style="width: 100%; height: auto; object-fit: cover;">
       </div>
     ` : '';
-    
+
     const productButton = product ? `
       <div style="margin-top: 40px; text-align: center;">
         <a href="https://weardynamite.com/product/${product.id || product.product_id}" style="display: inline-block; padding: 18px 45px; background: #FF5F1F; color: #ffffff !important; text-decoration: none; font-weight: 900; border-radius: 12px; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; box-shadow: 0 10px 30px rgba(255, 95, 31, 0.3);">View Product Now</a>
@@ -959,4 +968,148 @@ export class MailService {
       console.error(`[MAIL ERROR] Failed to send OTP email to ${to}:`, error);
     }
   }
+
+  /**
+   * Sends a formal proforma quotation email to the customer.
+   */
+  static async sendQuotationEmail(to: string, name: string, quote: any, customPdfBuffer?: Buffer) {
+    const html = this.getQuotationTemplate(name, quote);
+    const logoPath = this.getSignatureLogoPath();
+
+    try {
+      const pdfBuffer = customPdfBuffer || await PDFService.generateQuotation(quote);
+
+      await this.transporter.sendMail({
+        from: MailService.DEFAULT_FROM,
+        to,
+        subject: `Proforma Quotation: #${quote.quotationId} - WearDynamite 🔥`,
+        html,
+        attachments: [
+          { filename: 'logo.png', path: logoPath, cid: 'brandlogo' },
+          { filename: `Quotation_${quote.quotationId || 'Draft'}.pdf`, content: pdfBuffer, contentType: 'application/pdf' }
+        ],
+      });
+      console.log(`[MAIL SUCCESS] Quotation email sent to: ${to}`);
+      return { success: true };
+    } catch (error) {
+      console.error(`[MAIL ERROR] Failed to send quotation email to ${to}:`, error);
+      return { success: false };
+    }
+  }
+
+  private static getQuotationTemplate(name: string, quote: any) {
+    const accentColor = '#2563eb';
+    const bgColor = '#000000';
+
+    const itemsRows = (quote.items || []).map((item: any, idx: number) => `
+      <tr style="background-color: ${idx % 2 === 1 ? '#f8fafc' : '#ffffff'};">
+        <td style="padding: 10px; border-bottom: 1px solid #edf2f7; font-size: 13px; color: #1e293b;">
+          <strong>${item.productName}</strong><br>
+          <span style="font-size: 11px; color: #94a3b8;">Color: ${item.color || 'Std'} / Size: ${item.size || 'M'}</span>
+        </td>
+        <td style="padding: 10px; border-bottom: 1px solid #edf2f7; font-size: 13px; text-align: center; color: #475569;">${item.quantity}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #edf2f7; font-size: 13px; text-align: right; color: #475569;">₹${Number(item.unitPrice).toFixed(2)}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #edf2f7; font-size: 13px; text-align: center; color: #475569;">${item.taxPercent}%</td>
+        <td style="padding: 10px; border-bottom: 1px solid #edf2f7; font-size: 13px; text-align: right; font-weight: bold; color: #0f172a;">₹${Number(item.total).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    let taxTypeLabel = 'Tax (GST Excl)';
+    if (quote.isTaxApplicable === false) {
+      taxTypeLabel = 'Tax (N/A)';
+    } else if (quote.isTaxIncluded === true) {
+      taxTypeLabel = 'Tax (GST Incl)';
+    }
+
+    return `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      </head>
+      <body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #333; margin: 0; padding: 0; padding-top: 30px; padding-bottom: 30px;">
+        <div style="width: 100%; max-width: 600px; margin: auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;">
+          <!-- Header -->
+          <div style="background-color: ${bgColor}; padding: 30px; text-align: center; border-bottom: 4px solid ${accentColor};">
+            <img src="cid:brandlogo" alt="WearDynamite" style="max-width: 150px; height: auto;">
+          </div>
+
+          <div style="padding: 30px;">
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #edf2f7; padding-bottom: 20px; margin-bottom: 20px;">
+              <div>
+                <h1 style="font-size: 20px; font-weight: bold; color: #0f172a; margin: 0; text-transform: uppercase;">Proforma Quotation</h1>
+                <p style="font-size: 12px; color: #64748b; margin: 5px 0 0 0;">ID: ${quote.quotationId}</p>
+              </div>
+              <div style="text-align: right;">
+                <p style="font-size: 12px; color: #64748b; margin: 0;">Issued: ${new Date(quote.createdAt || Date.now()).toLocaleDateString()}</p>
+                <p style="font-size: 12px; color: #e11d48; margin: 5px 0 0 0; font-weight: bold;">Valid Till: ${new Date(quote.expiryDate || Date.now() + 15*24*60*60*1000).toLocaleDateString()}</p>
+              </div>
+            </div>
+
+            <p style="font-size: 15px; color: #0f172a; font-weight: bold; margin-bottom: 15px;">Hi ${name},</p>
+            <p style="font-size: 14px; color: #475569; line-height: 1.6; margin-bottom: 25px;">
+              Thank you for contacting WearDynamite. Please find our estimated custom price quotation details below.
+            </p>
+
+            <!-- Table -->
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px; text-align: left;">
+              <thead>
+                <tr style="background-color: #f1f5f9;">
+                  <th style="padding: 10px; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #475569; width: 45%;">Description</th>
+                  <th style="padding: 10px; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #475569; text-align: center;">Qty</th>
+                  <th style="padding: 10px; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #475569; text-align: right;">Rate</th>
+                  <th style="padding: 10px; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #475569; text-align: center;">GST</th>
+                  <th style="padding: 10px; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #475569; text-align: right;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${itemsRows}
+              </tbody>
+            </table>
+
+            <!-- Summary Box -->
+            <div style="background-color: #f8fafc; border-left: 4px solid #0f172a; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                <tr>
+                  <td style="padding: 4px 0; color: #64748b;">Subtotal:</td>
+                  <td style="padding: 4px 0; text-align: right; color: #0f172a;">₹${Number(quote.subtotal).toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 0; color: #64748b;">Discount:</td>
+                  <td style="padding: 4px 0; text-align: right; color: #e11d48;">-₹${Number(quote.discountTotal).toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 0; color: #64748b;">${taxTypeLabel}:</td>
+                  <td style="padding: 4px 0; text-align: right; color: #0f172a;">₹${Number(quote.taxTotal).toFixed(2)}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 0; color: #64748b;">Shipping:</td>
+                  <td style="padding: 4px 0; text-align: right; color: #0f172a;">₹${Number(quote.shippingCharges).toFixed(2)}</td>
+                </tr>
+                <tr style="border-top: 1px solid #e2e8f0; font-weight: bold; font-size: 16px;">
+                  <td style="padding: 10px 0 0 0; color: ${accentColor};">Grand Total:</td>
+                  <td style="padding: 10px 0 0 0; text-align: right; color: ${accentColor};">₹${Number(quote.grandTotal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                </tr>
+              </table>
+            </div>
+
+            <!-- Terms -->
+            <div style="border-top: 1px solid #edf2f7; padding-top: 20px; font-size: 12px; color: #64748b; line-height: 1.6; margin-bottom: 20px;">
+              <strong style="color: #0f172a;">Business Specifications:</strong><br>
+              • Payment: ${quote.paymentTerms || '-'}<br>
+              • Delivery: ${quote.deliveryTimeline || '-'}<br>
+              ${quote.termsConditions ? `• Terms: ${quote.termsConditions}<br>` : ''}
+            </div>
+          </div>
+
+          <div style="background-color: #000000; padding: 20px; text-align: center; font-size: 11px; color: rgba(255,255,255,0.4); text-transform: uppercase;">
+            WearDynamite. Institutional Grade Luxury Streetwear.
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
 }
+

@@ -25,7 +25,7 @@ export interface NotificationCampaign {
 export const createCampaign = async (data: Partial<NotificationCampaign>) => {
   const campaignId = uuidv4();
   const now = Date.now();
-  
+
   const campaign: NotificationCampaign = {
     PK: 'NOTIF#CAMPAIGN',
     SK: `CAMPAIGN#${now}#${campaignId}`,
@@ -92,14 +92,14 @@ export const executeBroadcast = async (campaign: NotificationCampaign) => {
     // 3. Update Campaign Status
     const totalSent = (results.pushSent || 0) + (results.emailSent || 0);
     const updated = { ...campaign, status: 'Sent' as const, sentCount: totalSent, results };
-    
+
     await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: updated }));
     return updated;
   } catch (error) {
     console.error('[BROADCAST EXECUTOR ERROR]', error);
-    await docClient.send(new PutCommand({ 
-        TableName: MAIN_TABLE, 
-        Item: { ...campaign, status: 'Failed' as const } 
+    await docClient.send(new PutCommand({
+      TableName: MAIN_TABLE,
+      Item: { ...campaign, status: 'Failed' as const }
     }));
     throw error;
   }
