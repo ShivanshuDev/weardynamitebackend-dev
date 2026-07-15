@@ -5,7 +5,7 @@ import { AuthRequest } from '../../middleware/auth';
 export const sync = async (req: AuthRequest, res: Response) => {
   try {
     // The middleware attached req.user with Firebase token data
-    const user = req.user; 
+    const user = req.user; E
     if (!user) {
       return res.status(401).json({ message: 'Sync failed: No authenticated user context.' });
     }

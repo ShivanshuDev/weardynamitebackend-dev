@@ -1,5 +1,8 @@
 service: weardynamite-backend
 
+build:
+  esbuild: false
+
 provider:
   name: aws
   runtime: nodejs20.x
@@ -46,7 +49,6 @@ custom:
       - AWS_REGION
 
 plugins:
-  - serverless-plugin-typescript
   - serverless-dotenv-plugin
 
 functions:
