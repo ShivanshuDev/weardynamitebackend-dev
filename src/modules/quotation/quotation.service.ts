@@ -1,6 +1,7 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 import { PutCommand, QueryCommand, GetCommand, UpdateCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
+import { cache } from '../../utils/redisClient';
 
 export interface QuotationItem {
   productId?: string;
@@ -99,10 +100,15 @@ export const createQuotation = async (data: Partial<Quotation> & { user_info?: s
     Item: quotation
   }));
 
+  await cache.delPattern('quotations:list:*');
   return quotation;
 };
 
 export const getQuotation = async (quotationId: string) => {
+  const cacheKey = `quotation:${quotationId}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Item } = await docClient.send(new GetCommand({
     TableName: MAIN_TABLE,
     Key: {
@@ -115,10 +121,15 @@ export const getQuotation = async (quotationId: string) => {
     throw new Error(`Quotation ${quotationId} not found`);
   }
 
+  await cache.set(cacheKey, Item, 900);
   return Item;
 };
 
 export const listQuotations = async (query: { status?: string; email?: string; lastKey?: any; limit?: number }) => {
+  const cacheKey = `quotations:list:${JSON.stringify(query)}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const limit = query.limit ? Number(query.limit) : 20;
   let KeyConditionExpression = '';
   let ExpressionAttributeValues: any = {};
@@ -147,10 +158,12 @@ export const listQuotations = async (query: { status?: string; email?: string; l
     ExclusiveStartKey: query.lastKey
   }));
 
-  return {
+  const result = {
     items: Items || [],
     lastKey: LastEvaluatedKey
   };
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const updateQuotation = async (quotationId: string, data: Partial<Quotation>) => {
@@ -173,6 +186,8 @@ export const updateQuotation = async (quotationId: string, data: Partial<Quotati
     Item: updatedItem
   }));
 
+  await cache.del(`quotation:${quotationId}`);
+  await cache.delPattern('quotations:list:*');
   return updatedItem;
 };
 
@@ -195,6 +210,8 @@ export const updateQuotationStatus = async (quotationId: string, status: string)
     ReturnValues: 'ALL_NEW'
   }));
 
+  await cache.del(`quotation:${quotationId}`);
+  await cache.delPattern('quotations:list:*');
   return Attributes;
 };
 
@@ -308,5 +325,7 @@ export const convertToOrder = async (quotationId: string) => {
     TransactItems: transactItems
   }));
 
+  await cache.del(`quotation:${quotationId}`);
+  await cache.delPattern('quotations:list:*');
   return { orderId, orderNumber: orderId };
 };

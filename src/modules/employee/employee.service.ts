@@ -3,17 +3,24 @@ import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand } fr
 import { v4 as uuidv4 } from 'uuid';
 import { addTransaction } from '../ledger/ledger.service';
 import { MailService } from '../../utils/mailService';
+import { cache } from '../../utils/redisClient';
+
 
 // ─── Employees ───────────────────────────────────────────────────────────────
 
 export const listEmployees = async () => {
+  const cacheKey = 'employees:list:all';
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
     KeyConditionExpression: 'GSI1PK = :pk AND begins_with(GSI1SK, :sk)',
     ExpressionAttributeValues: { ':pk': 'ROLE#employee', ':sk': 'EMP#' }
   }));
-  return Items || [];
+  const result = Items || [];
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 const getNextSequenceValue = async (counterId: string) => {
@@ -47,6 +54,7 @@ export const createEmployee = async (data: Record<string, any>) => {
   };
 
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: record }));
+  await cache.delPattern('employees:list:*');
   return record;
 };
 
@@ -56,6 +64,8 @@ export const updateEmployee = async (id: string, updates: Record<string, any>) =
   
   const updatedItem = { ...Item, ...updates };
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: updatedItem }));
+  await cache.del(`employee:${id}`);
+  await cache.delPattern('employees:list:*');
   return updatedItem;
 };
 
@@ -68,22 +78,33 @@ export const patchEmployeeStatus = async (id: string, status: string) => {
     ExpressionAttributeValues: { ':status': status, ':gsi': `STATUS#${status}` },
     ReturnValues: 'ALL_NEW'
   }));
+  await cache.del(`employee:${id}`);
+  await cache.delPattern('employees:list:*');
   return Attributes;
 };
 
 export const deleteEmployee = async (id: string) => {
   await docClient.send(new DeleteCommand({ TableName: MAIN_TABLE, Key: { PK: `EMPLOYEE#${id}`, SK: 'EMPLOYEE' } }));
+  await cache.del(`employee:${id}`);
+  await cache.delPattern('employees:list:*');
   return { message: 'Employee removed' };
 };
 
 export const getEmployee = async (id: string) => {
+  const cacheKey = `employee:${id}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
   const { Item } = await docClient.send(new GetCommand({ TableName: MAIN_TABLE, Key: { PK: `EMPLOYEE#${id}`, SK: 'EMPLOYEE' } }));
+  await cache.set(cacheKey, Item, 900);
   return Item;
 };
 
 // ─── Attendance ────────────────────────────────────────────────────────────────
 
 export const getAttendanceByDate = async (date: string) => {
+  const cacheKey = `employees:list:attendance:date:${date}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
   const [year, month] = date.split('-');
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
@@ -94,7 +115,9 @@ export const getAttendanceByDate = async (date: string) => {
       ':sk': `DATE#${date}` 
     }
   }));
-  return Items || [];
+  const result = Items || [];
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const markAttendance = async (data: {
@@ -140,42 +163,62 @@ export const markAttendance = async (data: {
   };
 
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: record }));
+  await cache.del(`employee:${data.employeeId}`);
+  await cache.delPattern('employees:list:*');
   return record;
 };
 
 export const getAttendanceMatrix = async (year: string, month: string) => {
+  const cacheKey = `employees:list:attendance:matrix:${year}-${month}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
     KeyConditionExpression: 'GSI1PK = :pk',
     ExpressionAttributeValues: { ':pk': `ORG#DYNAMITE#ATT#${year}-${month}` }
   }));
-  return Items || [];
+  const result = Items || [];
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const getEmployeeAttendanceHistory = async (employeeId: string) => {
+  const cacheKey = `employees:list:attendance:history:${employeeId}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
     ExpressionAttributeValues: { ':pk': `EMPLOYEE#${employeeId}`, ':sk': 'ATTENDANCE#' },
     ScanIndexForward: false // Newest first
   }));
-  return Items || [];
+  const result = Items || [];
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const getEmployeeAuditLog = async (employeeId: string) => {
+  const cacheKey = `employees:list:audit:${employeeId}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
     ExpressionAttributeValues: { ':pk': `EMPLOYEE#${employeeId}`, ':sk': 'AUDIT#' },
     ScanIndexForward: false
   }));
-  return Items || [];
+  const result = Items || [];
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 // ─── Payroll ──────────────────────────────────────────────────────────────────
 
 export const listPayroll = async () => {
+  const cacheKey = `employees:list:payroll:all`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
@@ -183,7 +226,9 @@ export const listPayroll = async () => {
     ExpressionAttributeValues: { ':pk': 'PAYROLL' },
     ScanIndexForward: false
   }));
-  return Items || [];
+  const result = Items || [];
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const processPayroll = async (data: { 
@@ -252,15 +297,22 @@ export const processPayroll = async (data: {
        console.error('[MAIL TRIGGER ERROR] Automated payout alert failed:', e);
     });
   }
+  await cache.del(`employee:${data.employeeId}`);
+  await cache.delPattern('employees:list:*');
   return record;
 };
 
 export const getEmployeePayroll = async (employeeId: string) => {
+  const cacheKey = `employees:list:payroll:${employeeId}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
     ExpressionAttributeValues: { ':pk': `EMPLOYEE#${employeeId}`, ':sk': 'PAYROLL#' },
     ScanIndexForward: false
   }));
-  return Items || [];
+  const result = Items || [];
+  await cache.set(cacheKey, result, 300);
+  return result;
 };

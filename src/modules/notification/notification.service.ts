@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { cache } from '../../utils/redisClient';
 
 const DB_PATH = path.join(process.cwd(), 'db.json');
 
@@ -39,10 +40,18 @@ export const createNotificationRequest = async (request: Omit<NotificationReques
 
   db.notifications.push(newRequest);
   await writeDb(db);
+  await cache.delPattern('notifications:list:*');
   return newRequest;
 };
 
 export const listNotifications = async () => {
+  const cacheKey = 'notifications:list:all';
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const db = await readDb();
-  return db.notifications || [];
+  const result = db.notifications || [];
+  
+  await cache.set(cacheKey, result, 300);
+  return result;
 };

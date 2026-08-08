@@ -1,6 +1,7 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 import { GetCommand, PutCommand, QueryCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
+import { cache } from '../../utils/redisClient';
 
 export interface IDCardConfig {
   name: string;
@@ -33,10 +34,16 @@ export interface StudentRecord {
  * Get school configuration from DynamoDB
  */
 export const getConfig = async (schoolId: string) => {
+  const cacheKey = `idcardConfig:${schoolId}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Item } = await docClient.send(new GetCommand({
     TableName: MAIN_TABLE,
     Key: { PK: `SCHOOL#${schoolId}`, SK: 'CONFIG' }
   }));
+  
+  await cache.set(cacheKey, Item || null, 900);
   return Item || null;
 };
 
@@ -57,6 +64,7 @@ export const saveConfig = async (schoolId: string, config: Partial<IDCardConfig>
     TableName: MAIN_TABLE,
     Item: record
   }));
+  await cache.del(`idcardConfig:${schoolId}`);
   return record;
 };
 
@@ -92,6 +100,7 @@ export const saveStudent = async (schoolId: string, studentData: StudentRecord) 
     Item: record
   }));
   
+  await cache.delPattern('students:list:*');
   return record;
 };
 
@@ -103,6 +112,7 @@ export const deleteStudent = async (schoolId: string, studentId: string) => {
     TableName: MAIN_TABLE,
     Key: { PK: `SCHOOL#${schoolId}`, SK: `STUDENT#${studentId}` }
   }));
+  await cache.delPattern('students:list:*');
   return { success: true };
 };
 
@@ -117,7 +127,12 @@ export const listStudents = async (filters: {
   phone?: string;
   fatherName?: string;
 }) => {
-  const { schoolId, class: cls, section, name, phone, fatherName } = filters;
+  const cacheKey = `students:list:${JSON.stringify(filters)}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
+  const fetch = async () => {
+    const { schoolId, class: cls, section, name, phone, fatherName } = filters;
   
   if (!schoolId) {
     throw new Error('schoolId is required');
@@ -194,4 +209,9 @@ export const listStudents = async (filters: {
     }
   }));
   return Items || [];
+  };
+
+  const result = await fetch();
+  await cache.set(cacheKey, result, 300);
+  return result;
 };

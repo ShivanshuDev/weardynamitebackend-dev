@@ -2,11 +2,16 @@ import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { addTransaction, updateDashboardStats } from '../ledger/ledger.service';
+import { cache } from '../../utils/redisClient';
 
 /**
  * List all expenses for admin.
  */
 export const listExpenses = async (filters: { category?: string; dateFrom?: string; dateTo?: string }) => {
+  const cacheKey = `expense:list:${JSON.stringify(filters)}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   let cmd: any = {
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
@@ -28,6 +33,7 @@ export const listExpenses = async (filters: { category?: string; dateFrom?: stri
     items = items.filter(i => i.category?.toLowerCase() === filters.category!.toLowerCase());
   }
 
+  await cache.set(cacheKey, items, 300);
   return items;
 };
 
@@ -77,6 +83,7 @@ export const createExpense = async (data: { description: string; category: strin
     referenceId: id
   });
 
+  await cache.delPattern('expense:list:*');
   return record;
 };
 
@@ -89,5 +96,7 @@ export const deleteExpense = async (id: string) => {
     TableName: MAIN_TABLE,
     Key: { PK: `EXPENSE#${id}`, SK: 'EXPENSE' }
   }));
+  await cache.del(`expense:${id}`);
+  await cache.delPattern('expense:list:*');
   return { message: 'Expense record deleted' };
 };

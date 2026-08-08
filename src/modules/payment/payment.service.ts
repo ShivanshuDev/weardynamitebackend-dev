@@ -3,6 +3,7 @@ import { PutCommand, QueryCommand, UpdateCommand, GetCommand } from '@aws-sdk/li
 import * as crypto from 'crypto';
 import * as OrderService from '../order/order.service';
 import { syncUser } from '../auth/auth.service';
+import { cache } from '../../utils/redisClient';
 
 const PAYU_KEY = process.env.PAYU_MERCHANT_KEY || 'gtK38P';
 const PAYU_SALT = process.env.PAYU_SALT || 'eCwWELxi';
@@ -180,5 +181,7 @@ export const updatePaymentStatus = async (orderId: string, status: string, gatew
     }
   }));
   
+  await cache.del(`payment:${orderId}`);
+  await cache.delPattern('payment:list:*');
   return { updated: true, status };
 };

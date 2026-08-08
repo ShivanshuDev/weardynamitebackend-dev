@@ -1,14 +1,21 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
+import { cache } from '../../utils/redisClient';
 
 export const getProfile = async (userId: string) => {
+  const cacheKey = `user:${userId}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Item } = await docClient.send(new GetCommand({
     TableName: MAIN_TABLE,
     Key: { PK: `USER#${userId}`, SK: 'PROFILE' }
   }));
   if (!Item) throw new Error('User not found');
   const { password, ...safe } = Item;
+  
+  await cache.set(cacheKey, safe, 900);
   return safe;
 };
 
@@ -21,6 +28,8 @@ export const updateFcmToken = async (userId: string, token: string) => {
     TableName: MAIN_TABLE,
     Item: { ...current, fcmToken: token, PK: `USER#${userId}`, SK: 'PROFILE' }
   }));
+  await cache.del(`user:${userId}`);
+  await cache.delPattern('users:list:*');
   return { success: true };
 };
 
@@ -64,6 +73,8 @@ export const updateProfile = async (userId: string, updates: {
     TableName: MAIN_TABLE, 
     Item: { ...updated, PK: `USER#${userId}`, SK: 'PROFILE' }
   }));
+  await cache.del(`user:${userId}`);
+  await cache.delPattern('users:list:*');
   return updated;
 };
 
@@ -71,6 +82,10 @@ export const updateProfile = async (userId: string, updates: {
  * Fetch users by gender without using SCANS (Highly Efficient)
  */
 export const getUsersByGender = async (gender: string) => {
+  const cacheKey = `users:list:${JSON.stringify({ gender })}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI3',
@@ -79,16 +94,24 @@ export const getUsersByGender = async (gender: string) => {
       ':pk': `GENDER#${gender.toUpperCase()}`
     }
   }));
-  return (Items || []).map(({ password, ...safe }) => safe);
+  const result = (Items || []).map(({ password, ...safe }) => safe);
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const getAddresses = async (userId: string) => {
+  const cacheKey = `users:list:addresses:${userId}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
     ExpressionAttributeValues: { ':pk': `USER#${userId}`, ':sk': 'ADDRESS#' }
   }));
-  return Items || [];
+  const result = Items || [];
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const addAddress = async (userId: string, address: Record<string, any>) => {
@@ -103,6 +126,8 @@ export const addAddress = async (userId: string, address: Record<string, any>) =
     isDefault: existing.length === 0 ? true : (address.isDefault || false)
   };
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: record }));
+  await cache.del(`user:${userId}`);
+  await cache.delPattern('users:list:*');
   return record;
 };
 
@@ -116,6 +141,8 @@ export const updateAddress = async (userId: string, addressId: string, updates: 
   
   const updated = { ...Item, ...updates };
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: updated }));
+  await cache.del(`user:${userId}`);
+  await cache.delPattern('users:list:*');
   return updated;
 };
 
@@ -124,6 +151,8 @@ export const deleteAddress = async (userId: string, addressId: string) => {
     TableName: MAIN_TABLE,
     Key: { PK: `USER#${userId}`, SK: `ADDRESS#${addressId}` }
   }));
+  await cache.del(`user:${userId}`);
+  await cache.delPattern('users:list:*');
   return { message: 'Address removed' };
 };
 
@@ -144,6 +173,8 @@ export const updatePreferences = async (userId: string, prefs: { currency?: stri
     TableName: MAIN_TABLE,
     Item: { ...updated, PK: `USER#${userId}`, SK: 'PROFILE' }
   }));
+  await cache.del(`user:${userId}`);
+  await cache.delPattern('users:list:*');
   return updated;
 };
 
@@ -172,10 +203,16 @@ export const saveUserNotification = async (userId: string, payload: {
   };
 
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: record }));
+  await cache.del(`user:${userId}`);
+  await cache.delPattern('users:list:*');
   return record;
 };
 
 export const listUserNotifications = async (userId: string, limit: number = 20) => {
+  const cacheKey = `users:list:notifications:${userId}:${limit}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
@@ -186,7 +223,9 @@ export const listUserNotifications = async (userId: string, limit: number = 20) 
     ScanIndexForward: false, // Descending (Newest first)
     Limit: limit
   }));
-  return Items || [];
+  const result = Items || [];
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const markNotificationRead = async (userId: string, notifId: string) => {
@@ -198,15 +237,16 @@ export const markNotificationRead = async (userId: string, notifId: string) => {
 
   await docClient.send(new UpdateCommand({
     TableName: MAIN_TABLE,
-    Key: { PK: `USER#${userId}`, SK: target.SK },
-    UpdateExpression: 'SET isRead = :val, expires_at = :exp',
-    ExpressionAttributeValues: { 
-      ':val': true,
-      ':exp': Math.floor((target.created_at + 7 * 24 * 60 * 60 * 1000) / 1000) // 7 days from creation
+    Key: { PK: target.PK, SK: target.SK },
+    UpdateExpression: 'SET isRead = :r, updated_at = :now',
+    ExpressionAttributeValues: {
+      ':r': true,
+      ':now': Date.now()
     }
   }));
-  
-  return { ...target, isRead: true };
+  await cache.del(`user:${userId}`);
+  await cache.delPattern('users:list:*');
+  return { message: 'Notification marked read' };
 };
 
 export const markAllNotificationsRead = async (userId: string) => {
@@ -226,12 +266,18 @@ export const markAllNotificationsRead = async (userId: string) => {
   );
   
   await Promise.allSettled(promises);
+  await cache.del(`user:${userId}`);
+  await cache.delPattern('users:list:*');
   return { success: true };
 };
 
 // ─── Admin Users ─────────────────────────────────────────────────────────────
 
 export const adminListUsers = async () => {
+  const cacheKey = `users:list:admin`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
@@ -241,13 +287,19 @@ export const adminListUsers = async () => {
       ':sk': 'ROLE#'
     }
   }));
-  return (Items || []).map(({ password, ...safe }) => safe);
+  const result = (Items || []).map(({ password, ...safe }) => safe);
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 /**
  * Direct Vault Lookup: Find any user profile by email across all roles.
  */
 export const getUserByEmail = async (email: string) => {
+  const cacheKey = `user:email:${email}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI2',
@@ -259,5 +311,6 @@ export const getUserByEmail = async (email: string) => {
   
   if (!Items || Items.length === 0) return null;
   const { password, ...safe } = Items[0];
+  await cache.set(cacheKey, safe, 900);
   return safe;
 };

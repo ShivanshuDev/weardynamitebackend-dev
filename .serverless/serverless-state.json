@@ -34,7 +34,8 @@
         "BACKEND_URL": "http://localhost:5001",
         "GMAIL_USER": "weardynamitehub@gmail.com",
         "GMAIL_APP_PASSWORD": "sslt igva aohs cskh",
-        "REDIS_URL": "rediss://default:gQAAAAAAAXrSAAIncDI4NzlkYTcwZDA1ZmY0OTViODU5MzFlZDNiMGU3ZGY1NHAyOTY5Nzg@pet-amoeba-96978.upstash.io:6379"
+        "REDIS_URL": "rediss://default:gQAAAAAAAXrSAAIncDI4NzlkYTcwZDA1ZmY0OTViODU5MzFlZDNiMGU3ZGY1NHAyOTY5Nzg@pet-amoeba-96978.upstash.io:6379",
+        "CLOUDFRONT_URL": "https://weardynamite-dev-assets.s3.ap-southeast-2.amazonaws.com"
       },
       "iam": {
         "role": {
@@ -244,7 +245,7 @@
                 "S3Bucket": {
                   "Ref": "ServerlessDeploymentBucket"
                 },
-                "S3Key": "serverless/weardynamite-backend/dev/1786193074949-2026-08-08T12:44:34.949Z/weardynamite-backend.zip"
+                "S3Key": "serverless/weardynamite-backend/dev/1786205667133-2026-08-08T16:14:27.133Z/weardynamite-backend.zip"
               },
               "Handler": "dist/handler.handler",
               "Runtime": "nodejs20.x",
@@ -273,7 +274,8 @@
                   "BACKEND_URL": "http://localhost:5001",
                   "GMAIL_USER": "weardynamitehub@gmail.com",
                   "GMAIL_APP_PASSWORD": "sslt igva aohs cskh",
-                  "REDIS_URL": "rediss://default:gQAAAAAAAXrSAAIncDI4NzlkYTcwZDA1ZmY0OTViODU5MzFlZDNiMGU3ZGY1NHAyOTY5Nzg@pet-amoeba-96978.upstash.io:6379"
+                  "REDIS_URL": "rediss://default:gQAAAAAAAXrSAAIncDI4NzlkYTcwZDA1ZmY0OTViODU5MzFlZDNiMGU3ZGY1NHAyOTY5Nzg@pet-amoeba-96978.upstash.io:6379",
+                  "CLOUDFRONT_URL": "https://weardynamite-dev-assets.s3.ap-southeast-2.amazonaws.com"
                 }
               },
               "Role": {
@@ -287,14 +289,14 @@
               "ApiLogGroup"
             ]
           },
-          "ApiLambdaVersionV8Y4chzLZGneaVWCnUvyBhHe3bKnUQsnugaos0y37UY": {
+          "ApiLambdaVersionRcNgz3BBCIFptKPshRdgoe5eY6D3ybrEN9dCYYdB7PI": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "ApiLambdaFunction"
               },
-              "CodeSha256": "WJX858lBsbpXKlE6nA2t9MJ4L4gAIUBU4D7o9/BNaq0="
+              "CodeSha256": "s4aq+8w789jw8AJyyCiaGC+fmbXUhIk019d4ZS3TQk0="
             }
           },
           "HttpApi": {
@@ -402,7 +404,7 @@
           "ApiLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "ApiLambdaVersionV8Y4chzLZGneaVWCnUvyBhHe3bKnUQsnugaos0y37UY"
+              "Ref": "ApiLambdaVersionRcNgz3BBCIFptKPshRdgoe5eY6D3ybrEN9dCYYdB7PI"
             },
             "Export": {
               "Name": "sls-weardynamite-backend-dev-ApiLambdaFunctionQualifiedArn"
@@ -559,7 +561,7 @@
         "timeout": 29,
         "runtime": "nodejs20.x",
         "vpc": {},
-        "versionLogicalId": "ApiLambdaVersionV8Y4chzLZGneaVWCnUvyBhHe3bKnUQsnugaos0y37UY"
+        "versionLogicalId": "ApiLambdaVersionRcNgz3BBCIFptKPshRdgoe5eY6D3ybrEN9dCYYdB7PI"
       }
     },
     "configValidationMode": "warn",
@@ -577,7 +579,7 @@
         ],
         "artifactsS3KeyDirname": "serverless/weardynamite-backend/dev/code-artifacts",
         "artifact": "H:\\weardynamite\\backend\\.serverless\\weardynamite-backend.zip",
-        "artifactDirectoryName": "serverless/weardynamite-backend/dev/1786193074949-2026-08-08T12:44:34.949Z"
+        "artifactDirectoryName": "serverless/weardynamite-backend/dev/1786205667133-2026-08-08T16:14:27.133Z"
       },
       "build": {
         "esbuild": false
@@ -601,7 +603,7 @@
   },
   "package": {
     "individually": false,
-    "artifactDirectoryName": "serverless/weardynamite-backend/dev/1786193074949-2026-08-08T12:44:34.949Z",
+    "artifactDirectoryName": "serverless/weardynamite-backend/dev/1786205667133-2026-08-08T16:14:27.133Z",
     "artifact": "weardynamite-backend.zip"
   }
 }

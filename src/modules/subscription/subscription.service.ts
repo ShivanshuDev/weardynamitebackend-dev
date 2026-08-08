@@ -1,6 +1,7 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 import { QueryCommand, UpdateCommand, TransactWriteCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { MailService } from '../../utils/mailService';
+import { cache } from '../../utils/redisClient';
 
 export const subscribe = async (data: { email: string; name?: string; phone?: string; identifier?: string }) => {
   const { email, name, phone, identifier } = data;
@@ -86,6 +87,8 @@ export const subscribe = async (data: { email: string; name?: string; phone?: st
     TransactItems: transactItems
   }));
 
+  await cache.delPattern('subscribers:list:*');
+
   // Asynchronous Email Dispatch
   (async () => {
     try {
@@ -109,6 +112,10 @@ export const subscribe = async (data: { email: string; name?: string; phone?: st
 };
 
 export const listSubscribers = async () => {
+  const cacheKey = 'subscribers:list:all';
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
@@ -116,5 +123,8 @@ export const listSubscribers = async () => {
     ExpressionAttributeValues: { ':pk': 'SUBSCRIPTION' },
     ScanIndexForward: false
   }));
-  return Items || [];
+  
+  const result = Items || [];
+  await cache.set(cacheKey, result, 300);
+  return result;
 };

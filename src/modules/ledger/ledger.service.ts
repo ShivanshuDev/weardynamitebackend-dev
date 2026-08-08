@@ -1,10 +1,15 @@
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
+import { cache } from '../../utils/redisClient';
 
 // ─── Ledger ───────────────────────────────────────────────────────────────────
 
 export const listTransactions = async (filters: { type?: string; dateFrom?: string; dateTo?: string }) => {
+  const cacheKey = `ledger:list:${JSON.stringify(filters)}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   // Use GSI1 for chronological ledger fetching
   let cmd: any = {
     TableName: MAIN_TABLE,
@@ -28,6 +33,7 @@ export const listTransactions = async (filters: { type?: string; dateFrom?: stri
     result = result.filter(i => i.type === filters.type); // In-memory filter for sub-types
   }
   
+  await cache.set(cacheKey, result, 300);
   return result;
 };
 
@@ -64,10 +70,18 @@ export const addTransaction = async (data: { description: string; type: 'Credit'
   };
 
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: ledgerRecord }));
+  await cache.delPattern('ledger:list:*');
+  await cache.delPattern('ledger:summary:*');
+  await cache.delPattern('ledger:chart:*');
+  await cache.del('ledger:export:csv');
   return ledgerRecord;
 };
 
 export const getDailySummary = async (date: string) => {
+  const cacheKey = `ledger:summary:${date}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   // Retrieve Ledger Items up to target date (Query with Range instead of memory filter)
   const targetDateTs = new Date(date).getTime();
   const { Items } = await docClient.send(new QueryCommand({
@@ -104,7 +118,7 @@ export const getDailySummary = async (date: string) => {
   // 3. Closing Balance
   const closingBalance = openingBalance + todayCredit - todayDebit;
 
-  return {
+  const result = {
     date,
     openingBalance,
     todayCredit,
@@ -113,16 +127,30 @@ export const getDailySummary = async (date: string) => {
     closingBalance,
     transactionCount: todayItems.length
   };
+
+  await cache.set(cacheKey, result, 900);
+  return result;
 };
 
 export const getLedgerSummary = async () => {
+  const cacheKey = `ledger:summary:all`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const items = await listTransactions({});
   const totalCredit = items.filter((i: any) => i.type === 'Credit').reduce((s: number, i: any) => s + Number(i.amount), 0);
   const totalDebit = items.filter((i: any) => i.type === 'Debit').reduce((s: number, i: any) => s + Number(i.amount), 0);
-  return { totalCredit, totalDebit, netProfit: totalCredit - totalDebit };
+  const result = { totalCredit, totalDebit, netProfit: totalCredit - totalDebit };
+  
+  await cache.set(cacheKey, result, 900);
+  return result;
 };
 
 export const exportLedgerCSV = async () => {
+  const cacheKey = `ledger:export:csv`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const items = await listTransactions({});
   return ['id,description,type,amount,date', ...items.map((i: any) => `${i.ledgerId},"${i.description}",${i.type},${i.amount},${i.createdAt || ''}`)].join('\n');
 };
@@ -164,9 +192,15 @@ export const updateDashboardStats = async (values: { orders?: number, revenue?: 
     ExpressionAttributeNames: expressionAttributeNames,
     ExpressionAttributeValues: expressionAttributeValues
   }));
+
+  await cache.del('ledger:dashboard');
 };
 
 export const getDashboardStats = async () => {
+  const cacheKey = `ledger:dashboard`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   // 1. Attempt to read from the Pre-Aggregated Snapshot record (Highly Efficient)
   const { Item: snapshot } = await docClient.send(new GetCommand({
     TableName: MAIN_TABLE,
@@ -205,7 +239,7 @@ export const getDashboardStats = async () => {
   const currentStock = products.reduce((s, p: any) => s + Number(p.current_stock || p.available_stock || 0), 0);
 
   if (snapshot) {
-    return {
+    const result = {
       grossRevenue: snapshot.totalRevenue || 0,
       activeOrders: snapshot.totalOrders || 0,
       totalBurn: snapshot.totalBurn || 0,
@@ -213,11 +247,13 @@ export const getDashboardStats = async () => {
       totalReturn: totalReturn,    // Dynamic return aggregation
       isRealtime: true
     };
+    await cache.set(cacheKey, result, 900);
+    return result;
   }
 
   // Fallback for initial state
   const allOrders = (ordersRes as any).Items || []; // This would be populated if snapshot is missing
-  return {
+  const resultFallback = {
     grossRevenue: allOrders.reduce((s: number, o: any) => s + Number(o.total_amount || 0), 0),
     activeOrders: allOrders.length,
     totalBurn: 0,
@@ -225,9 +261,16 @@ export const getDashboardStats = async () => {
     totalReturn: totalReturn,
     isRealtime: false
   };
+
+  await cache.set(cacheKey, resultFallback, 900);
+  return resultFallback;
 };
 
 export const getRevenueChart = async (period: string) => {
+  const cacheKey = `ledger:chart:${period}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const days = period === '7d' ? 7 : (period === '14d' || period === '2 Weeks') ? 14 : period === '90d' ? 90 : 30;
   const startTime = Date.now() - (days * 24 * 60 * 60 * 1000);
 
@@ -262,14 +305,21 @@ export const getRevenueChart = async (period: string) => {
     }
   });
   
-  return Object.keys(revenueHistory).map(date => ({
+  const result = Object.keys(revenueHistory).map(date => ({
     date,
     revenue: revenueHistory[date],
     expense: expenseHistory[date]
   }));
+
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const getTopProducts = async () => {
+  const cacheKey = `ledger:topProducts`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Items: orders } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
@@ -289,8 +339,11 @@ export const getTopProducts = async () => {
     });
   });
 
-  return Object.values(productSales)
+  const result = Object.values(productSales)
     .sort((a, b) => b.quantity - a.quantity)
     .slice(0, 5);
+
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 

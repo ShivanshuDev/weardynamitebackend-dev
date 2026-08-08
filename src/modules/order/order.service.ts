@@ -10,12 +10,18 @@ import { cache } from '../../utils/redisClient';
 // ─── Cart ────────────────────────────────────────────────────────────────────
 
 export const getCart = async (userId: string) => {
+  const cacheKey = `cart:${userId}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
     ExpressionAttributeValues: { ':pk': `USER#${userId}`, ':sk': 'CART#' }
   }));
-  return Items || [];
+  const result = Items || [];
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const addToCart = async (userId: string, item: { productId: string; color: string; size: string; quantity: number; forWhom?: string }) => {
@@ -27,6 +33,7 @@ export const addToCart = async (userId: string, item: { productId: string; color
     owner_id: userId,
   };
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: cartItem }));
+  await cache.del(`cart:${userId}`);
   return cartItem;
 };
 
@@ -38,6 +45,7 @@ export const updateCartItem = async (userId: string, itemId: string, quantity: n
     ExpressionAttributeValues: { ':q': quantity },
     ReturnValues: 'ALL_NEW'
   }));
+  await cache.del(`cart:${userId}`);
   return Attributes;
 };
 
@@ -46,6 +54,7 @@ export const removeCartItem = async (userId: string, itemId: string) => {
     TableName: MAIN_TABLE,
     Key: { PK: `USER#${userId}`, SK: `CART#${itemId}` }
   }));
+  await cache.del(`cart:${userId}`);
   return { message: 'Item removed from cart' };
 };
 
@@ -54,18 +63,25 @@ export const clearCart = async (userId: string) => {
   for (const i of items) {
     await docClient.send(new DeleteCommand({ TableName: MAIN_TABLE, Key: { PK: i.PK, SK: i.SK } }));
   }
+  await cache.del(`cart:${userId}`);
   return { message: 'Cart cleared' };
 };
 
 // ─── Favorites ───────────────────────────────────────────────────────────────
 
 export const getFavorites = async (userId: string) => {
+  const cacheKey = `favorites:${userId}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
     ExpressionAttributeValues: { ':pk': `USER#${userId}`, ':sk': 'FAVORITE#' }
   }));
-  return Items || [];
+  const result = Items || [];
+  await cache.set(cacheKey, result, 900);
+  return result;
 };
 
 export const toggleFavorite = async (userId: string, productId: string) => {
@@ -76,9 +92,11 @@ export const toggleFavorite = async (userId: string, productId: string) => {
 
   if (Item) {
     await docClient.send(new DeleteCommand({ TableName: MAIN_TABLE, Key: { PK: `USER#${userId}`, SK: `FAVORITE#${productId}` } }));
+    await cache.del(`favorites:${userId}`);
     return { favorited: false };
   } else {
     await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: { PK: `USER#${userId}`, SK: `FAVORITE#${productId}`, product_id: productId, owner_id: userId } }));
+    await cache.del(`favorites:${userId}`);
     return { favorited: true };
   }
 };
@@ -291,18 +309,20 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
   // 4. Finalize Transaction
   await docClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
 
-  // Real-time Cache Invalidation for affected products
+  // Real-time Cache Invalidation for affected products and orders
   try {
-    const cachePats = ['products:*'];
+    const cachePats = ['products:*', 'orders:list:*', `userOrders:${userId}`];
     for (const item of items) {
       cachePats.push(`product:${item.productId}`);
     }
     await Promise.all([
       cache.delPattern('products:*'),
+      cache.delPattern('orders:list:*'),
+      cache.del(`userOrders:${userId}`),
       ...items.map(item => cache.del(`product:${item.productId}`))
     ]);
   } catch (err) {
-    console.warn('[CACHE ERROR] Failed to invalidate product cache after order:', err);
+    console.warn('[CACHE ERROR] Failed to invalidate cache after order:', err);
   }
 
   // High-Performance Event: Atomic Dashboard increment
@@ -329,6 +349,10 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
  * Efficiently fetches all orders for a specific user using GSI1.
  */
 export const getUserOrders = async (userId: string) => {
+  const cacheKey = `userOrders:${userId}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
@@ -336,13 +360,19 @@ export const getUserOrders = async (userId: string) => {
     ExpressionAttributeValues: { ':pk': `USER#${userId}` },
     ScanIndexForward: false // Newest first
   }));
-  return Items || [];
+  const result = Items || [];
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 /**
  * Fetches a single order's summary and its items.
  */
 export const getOrderDetail = async (orderId: string) => {
+  const cacheKey = `order:${orderId}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     KeyConditionExpression: 'PK = :pk',
@@ -354,7 +384,9 @@ export const getOrderDetail = async (orderId: string) => {
   const summary = Items.find(i => i.SK === 'SUMMARY');
   const items = Items.filter(i => i.SK.startsWith('ITEM#'));
 
-  return { ...summary, items };
+  const result = { ...summary, items };
+  await cache.set(cacheKey, result, 900);
+  return result;
 };
 
 /**
@@ -370,6 +402,10 @@ export const getUserOrder = async (userId: string, orderId: string) => {
  * Lists orders globally or by status using GSIs.
  */
 export const adminListOrders = async (filters: { status?: string; search?: string }) => {
+  const cacheKey = `orders:list:${JSON.stringify(filters)}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   let orders: any[] = [];
 
   if (filters.status) {
@@ -392,6 +428,7 @@ export const adminListOrders = async (filters: { status?: string; search?: strin
     orders = Items || [];
   }
 
+  await cache.set(cacheKey, orders, 300);
   return orders;
 };
 
@@ -444,6 +481,10 @@ export const updateOrderStatus = async (orderId: string, status: string) => {
   const user = await getProfile(order.user_id);
   NotificationService.sendOrderStatusUpdate(order, status, user).catch(console.error);
 
+  await cache.del(`order:${orderId}`);
+  await cache.delPattern('orders:list:*');
+  await cache.del(`userOrders:${order.user_id}`);
+
   return { message: 'Order Status Updated', status };
 };
 
@@ -468,7 +509,11 @@ export const updateOrderTracking = async (orderId: string, trackingNumber: strin
   // Notify user of tracking update
   const order = await getOrderDetail(orderId);
   const user = await getProfile(order.user_id);
-  NotificationService.sendOrderStatusUpdate(order, 'Shipped', user).catch(console.error);
+  NotificationService.sendOrderShipped(order, trackingNumber, courier, user).catch(console.error);
 
-  return { message: 'Order Tracking Updated' };
+  await cache.del(`order:${orderId}`);
+  await cache.delPattern('orders:list:*');
+  await cache.del(`userOrders:${order.user_id}`);
+
+  return { message: 'Tracking details updated and order shipped' };
 };

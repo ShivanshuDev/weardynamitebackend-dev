@@ -2,6 +2,7 @@ import { docClient, INVENTORY_TABLE } from '../../utils/awsClient';
 import { TransactWriteCommand, QueryCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { addTransaction } from '../ledger/ledger.service';
+import { cache } from '../../utils/redisClient';
 
 // Helper to decode Base64 LEK
 const decodeLEK = (base64Str?: string) => {
@@ -148,10 +149,15 @@ export const addInventoryItem = async (invoiceData: any) => {
     date: now
   });
 
+  await cache.delPattern('inventory:list:*');
   return { success: true, invoiceNumber, recordsAdded: variantRecordsCount };
 };
 
 export const getAllInvoices = async (limit = 20, lastKey?: string) => {
+  const cacheKey = `inventory:list:invoices:${limit}:${lastKey || 'start'}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const exclusiveStartKey = decodeLEK(lastKey);
   
   const { Items, LastEvaluatedKey } = await docClient.send(new QueryCommand({
@@ -166,13 +172,19 @@ export const getAllInvoices = async (limit = 20, lastKey?: string) => {
   
   const finalItems = (Items || []).filter(i => i.SK === 'SUMMARY' || i.SK === 'HEADER');
   
-  return {
+  const result = {
     items: finalItems,
     lastEvaluatedKey: encodeLEK(LastEvaluatedKey)
   };
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const getInvoiceSummary = async (invoice_number: string) => {
+  const cacheKey = `inventory:invoice:${invoice_number}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Item } = await docClient.send(new GetCommand({
     TableName: INVENTORY_TABLE,
     Key: { 
@@ -180,10 +192,15 @@ export const getInvoiceSummary = async (invoice_number: string) => {
       SK: 'SUMMARY' 
     }
   }));
+  await cache.set(cacheKey, Item, 900);
   return Item;
 };
 
 export const getInvoiceItems = async (invoice_number: string, limit = 50, lastKey?: string) => {
+  const cacheKey = `inventory:list:invoiceItems:${invoice_number}:${limit}:${lastKey || 'start'}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const exclusiveStartKey = decodeLEK(lastKey);
 
   const { Items, LastEvaluatedKey } = await docClient.send(new QueryCommand({
@@ -197,13 +214,19 @@ export const getInvoiceItems = async (invoice_number: string, limit = 50, lastKe
     ExclusiveStartKey: exclusiveStartKey
   }));
   
-  return {
+  const result = {
     items: Items || [],
     lastEvaluatedKey: encodeLEK(LastEvaluatedKey)
   };
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const getInventoryByDateRange = async (startDate: string, endDate: string, limit = 50, lastKey?: string) => {
+  const cacheKey = `inventory:list:dateRange:${startDate}:${endDate}:${limit}:${lastKey || 'start'}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const exclusiveStartKey = decodeLEK(lastKey);
   const startEpoch = new Date(startDate).getTime();
   const endEpoch = new Date(endDate).getTime();
@@ -222,13 +245,19 @@ export const getInventoryByDateRange = async (startDate: string, endDate: string
     ExclusiveStartKey: exclusiveStartKey
   }));
   
-  return {
+  const result = {
     items: Items || [],
     lastEvaluatedKey: encodeLEK(LastEvaluatedKey)
   };
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const searchProducts = async (query: string, limit = 20, lastKey?: string) => {
+  const cacheKey = `inventory:list:searchProducts:${query}:${limit}:${lastKey || 'start'}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const exclusiveStartKey = decodeLEK(lastKey);
   const search_query = query.toLowerCase().trim();
 
@@ -244,10 +273,12 @@ export const searchProducts = async (query: string, limit = 20, lastKey?: string
     ExclusiveStartKey: exclusiveStartKey
   }));
 
-  return {
+  const result = {
     items: Items || [],
     lastEvaluatedKey: encodeLEK(LastEvaluatedKey)
   };
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const listAllInventoryItems = async (
@@ -255,6 +286,10 @@ export const listAllInventoryItems = async (
   limit = 20,
   lastKey?: string
 ) => {
+  const cacheKey = `inventory:list:all:${JSON.stringify(filters)}:${limit}:${lastKey || 'start'}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const exclusiveStartKey = decodeLEK(lastKey);
   const { sku, name, status, startDate, endDate } = filters;
 
@@ -304,13 +339,19 @@ export const listAllInventoryItems = async (
     ExclusiveStartKey: exclusiveStartKey
   }));
 
-  return {
+  const result = {
     items: Items || [],
     lastEvaluatedKey: encodeLEK(LastEvaluatedKey)
   };
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const getActiveInventoryItems = async (query?: string, limit = 50, lastKey?: string) => {
+  const cacheKey = `inventory:list:active:${query || 'all'}:${limit}:${lastKey || 'start'}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const exclusiveStartKey = decodeLEK(lastKey);
   const expressionAttributeValues: any = { 
     ':pk': 'INVENTORY_ITEMS',
@@ -339,13 +380,19 @@ export const getActiveInventoryItems = async (query?: string, limit = 50, lastKe
     ExclusiveStartKey: exclusiveStartKey
   }));
 
-  return {
+  const result = {
     items: Items || [],
     lastEvaluatedKey: encodeLEK(LastEvaluatedKey)
   };
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const searchInvoices = async (query: string, limit = 20, lastKey?: string) => {
+  const cacheKey = `inventory:list:searchInvoices:${query}:${limit}:${lastKey || 'start'}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const exclusiveStartKey = decodeLEK(lastKey);
   const search_query = query.toLowerCase().trim();
 
@@ -361,13 +408,19 @@ export const searchInvoices = async (query: string, limit = 20, lastKey?: string
     ExclusiveStartKey: exclusiveStartKey
   }));
 
-  return {
+  const result = {
     items: Items || [],
     lastEvaluatedKey: encodeLEK(LastEvaluatedKey)
   };
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const getAllInventoryItems = async (limit = 100, lastKey?: string, filters?: any) => {
+  const cacheKey = `inventory:list:allFilters:${limit}:${lastKey || 'start'}:${JSON.stringify(filters || {})}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const exclusiveStartKey = decodeLEK(lastKey);
   const expressionAttributeValues: any = { ':pk': 'INVENTORY_ITEMS' };
   const expressionAttributeNames: any = { '#status': 'status' };
@@ -428,13 +481,19 @@ export const getAllInventoryItems = async (limit = 100, lastKey?: string, filter
 
   const { Items, LastEvaluatedKey } = await docClient.send(new QueryCommand(queryInput));
 
-  return {
+  const result = {
     items: Items || [],
     lastEvaluatedKey: encodeLEK(LastEvaluatedKey)
   };
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const getItemById = async (invoice_number: string, item_id: string) => {
+  const cacheKey = `inventory:${invoice_number}:${item_id}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   const { Item } = await docClient.send(new GetCommand({
     TableName: INVENTORY_TABLE,
     Key: { 
@@ -442,6 +501,7 @@ export const getItemById = async (invoice_number: string, item_id: string) => {
       SK: `ITEM#${item_id}` 
     }
   }));
+  await cache.set(cacheKey, Item, 900);
   return Item;
 };
 
@@ -463,6 +523,8 @@ export const updateInvoiceStatus = async (invoiceNumber: string, status: string)
       }
     ]
   }));
+  await cache.del(`inventory:invoice:${invoiceNumber}`);
+  await cache.delPattern('inventory:list:*');
   return { success: true, invoiceNumber, status };
 };
 
@@ -484,6 +546,8 @@ export const updateInventoryItemStatus = async (invoiceNumber: string, inventory
       }
     ]
   }));
+  await cache.del(`inventory:${invoiceNumber}:${inventoryId}`);
+  await cache.delPattern('inventory:list:*');
   return { success: true, invoiceNumber, inventoryId, status };
 };
 
@@ -524,5 +588,6 @@ export const bulkUpdateInventoryItemStatus = async (updates: any[]) => {
     }
   }
 
+  await cache.delPattern('inventory:list:*');
   return { success: true, updatedCount: results.length };
 };

@@ -3,8 +3,13 @@ import { PutCommand, QueryCommand, DeleteCommand, UpdateCommand, ScanCommand, Ge
 import { v4 as uuidv4 } from 'uuid';
 import { MailService } from '../../utils/mailService';
 import { NotificationService } from '../../utils/notificationService';
+import { cache } from '../../utils/redisClient';
+
 
 export const listInquiries = async () => {
+  const cacheKey = `inquiries:list:all`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
@@ -12,7 +17,9 @@ export const listInquiries = async () => {
     ExpressionAttributeValues: { ':pk': 'INQUIRY' },
     ScanIndexForward: false
   }));
-  return Items || [];
+  const result = Items || [];
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const submitInquiry = async (data: Record<string, any>) => {
@@ -100,14 +107,19 @@ export const submitInquiry = async (data: Record<string, any>) => {
     }
   })();
 
+  await cache.delPattern('inquiries:list:*');
   return record;
 };
 
 export const getInquiryDetail = async (id: string) => {
+  const cacheKey = `inquiry:${id}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
   const { Item } = await docClient.send(new GetCommand({
     TableName: MAIN_TABLE,
     Key: { PK: `INQUIRY#${id}`, SK: 'METADATA' }
   }));
+  await cache.set(cacheKey, Item, 900);
   return Item;
 };
 
@@ -169,15 +181,23 @@ export const updateInquiryStatus = async (id: string, status: string) => {
     console.warn(`[STATUS NOTIF] Skipping notifications: item found? ${!!item}, email found? ${item?.email}`);
   }
 
+  await cache.del(`inquiry:${id}`);
+  await cache.delPattern('inquiries:list:*');
   return { updated: true, status };
 };
 
 export const deleteInquiry = async (id: string) => {
   await docClient.send(new DeleteCommand({ TableName: MAIN_TABLE, Key: { PK: `INQUIRY#${id}`, SK: 'METADATA' } }));
+  await cache.del(`inquiry:${id}`);
+  await cache.delPattern('inquiries:list:*');
   return { message: 'Inquiry deleted' };
 };
 
 export const listBulkOrders = async (params: { status?: string, orderType?: string, lastKey?: string, limit?: number }) => {
+  const cacheKey = `inquiries:list:bulk:${JSON.stringify(params)}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
+
   let indexName = 'GSI1';
   let pkValue = 'BULK_ORDER';
   
@@ -214,21 +234,28 @@ export const listBulkOrders = async (params: { status?: string, orderType?: stri
 
   const { Items, LastEvaluatedKey } = await docClient.send(new QueryCommand(queryParams));
 
-  return {
+  const result = {
     items: Items || [],
     lastKey: LastEvaluatedKey ? Buffer.from(JSON.stringify(LastEvaluatedKey)).toString('base64') : null
   };
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 // Subscribers
 export const listSubscribers = async () => {
+  const cacheKey = `inquiries:list:subscribers`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
     IndexName: 'GSI1',
     KeyConditionExpression: 'GSI1PK = :pk',
     ExpressionAttributeValues: { ':pk': 'SUBSCRIBER' }
   }));
-  return Items || [];
+  const result = Items || [];
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const subscribe = async (email: string) => {
@@ -242,6 +269,7 @@ export const subscribe = async (email: string) => {
     createdAt: Date.now()
   };
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: record }));
+  await cache.delPattern('inquiries:list:*');
   return record;
 };
 
@@ -250,10 +278,14 @@ export const unsubscribe = async (email: string) => {
     TableName: MAIN_TABLE,
     Key: { PK: `SUBSCRIBER#${email}`, SK: 'METADATA' }
   }));
+  await cache.delPattern('inquiries:list:*');
   return { message: 'Unsubscribed' };
 };
 
 export const listInquiriesByUser = async (email: string) => {
+  const cacheKey = `inquiries:list:user:${email}`;
+  const cached = await cache.get(cacheKey);
+  if (cached) return cached as any;
   // Enforcing strict 'No Scan' policy: Use GSI4 for high-performance inquiry lookup
   const { Items } = await docClient.send(new QueryCommand({
     TableName: MAIN_TABLE,
@@ -265,7 +297,9 @@ export const listInquiriesByUser = async (email: string) => {
   }));
   
   // High-precision chronological sorting (fallback if GSI SK is not primary sort)
-  return (Items || []).sort((a, b) => (Number(b.createdAt || 0)) - (Number(a.createdAt || 0)));
+  const result = (Items || []).sort((a, b) => (Number(b.createdAt || 0)) - (Number(a.createdAt || 0)));
+  await cache.set(cacheKey, result, 300);
+  return result;
 };
 
 export const exportSubscribersCSV = () => {
