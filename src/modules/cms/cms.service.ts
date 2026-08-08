@@ -15,6 +15,9 @@ export const getCms = async () => {
   }));
 
   const data = Item || getDefaultCms();
+  if (data && !data.gallery) {
+    data.gallery = getDefaultCms().gallery;
+  }
   await cache.set(cacheKey, data, 3600); // Cache for 1 hour
   return data;
 };
@@ -167,5 +170,11 @@ const getDefaultCms = () => ({
         { title: 'Intellectual Property', content: 'All content on this site is owned by Wear Dynamite.' }
       ]
     }
-  }
+  },
+  gallery: [
+    { image: 'https://images.unsplash.com/photo-1441984904996-e0b6ba687e07?q=80&w=600', title: 'Streetwear Fusion', description: 'Premium fabrics tailored for everyday motion.' },
+    { image: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?q=80&w=600', title: 'Summer Escape', description: 'Lightweight linen and cotton threads.' },
+    { image: 'https://images.unsplash.com/photo-1523381210434-271e8be1F52b?q=80&w=600', title: 'Urban Edge', description: 'Heavyweight graphic tees and accessories.' },
+    { image: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?q=80&w=600', title: 'Classic Essentials', description: 'Handcrafted styles designed to endure.' }
+  ]
 });

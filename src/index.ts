@@ -24,6 +24,7 @@ import paymentRoutes from './modules/payment/payment.routes';
 import notificationRoutes from './modules/notification/notification.routes';
 import subscriptionRoutes from './modules/subscription/subscription.routes';
 import quotationRoutes from './modules/quotation/quotation.routes';
+import idcardRoutes from './modules/idcard/idcard.routes';
 import { initScheduler } from './utils/scheduler';
 
 const app = express();
@@ -61,6 +62,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api', quotationRoutes);
+app.use('/api', idcardRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {

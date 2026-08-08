@@ -1,5 +1,14 @@
 service: weardynamite-backend
 
+package:
+  individually: false
+  patterns:
+    - 'dist/**'
+    - 'package.json'
+    - '.env'
+    - '!src/**'
+    - '!.build/**'
+
 build:
   esbuild: false
 
@@ -53,7 +62,7 @@ plugins:
 
 functions:
   api:
-    handler: src/handler.handler
+    handler: dist/handler.handler
     events:
       - httpApi:
           path: '*'

@@ -35,3 +35,4 @@ export const updatePolicies = sectionUpdater('policies');
 export const updatePoliciesShipping = sectionUpdater('policies.shipping');
 export const updatePoliciesFaq = sectionUpdater('policies.faq');
 export const updatePoliciesPrivacy = sectionUpdater('policies.privacy');
+export const updateGallery = sectionUpdater('gallery');

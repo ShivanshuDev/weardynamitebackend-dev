@@ -26,5 +26,6 @@ router.put('/policies', auth, admin, CmsController.updatePolicies);
 router.put('/policies/shipping', auth, admin, CmsController.updatePoliciesShipping);
 router.put('/policies/faq', auth, admin, CmsController.updatePoliciesFaq);
 router.put('/policies/privacy', auth, admin, CmsController.updatePoliciesPrivacy);
+router.put('/gallery', auth, admin, CmsController.updateGallery);
 
 export default router;
