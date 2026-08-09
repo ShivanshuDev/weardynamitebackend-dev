@@ -394,4 +394,23 @@ export class NotificationService {
       return null;
     }
   }
+
+  /**
+   * Send Gift Card Email
+   */
+  static async sendGiftEmail(to: string, name: string, code: string, amount: number, senderMessage?: string, buyer?: any) {
+    await MailService.sendGiftCardEmail(to, name, code, amount, senderMessage);
+    if (buyer && buyer.email) {
+      await MailService.sendGiftDeliveredEmail(buyer.email, buyer.name, name, code, amount, senderMessage);
+    }
+  }
+
+  /**
+   * Send Gift Purchase Confirmation (For scheduled gifts)
+   */
+  static async sendGiftPurchaseConfirmation(buyer: any, recipientName: string, code: string, amount: number, senderMessage: string | undefined, scheduledDate: string | number) {
+    if (buyer && buyer.email) {
+      await MailService.sendGiftPurchaseConfirmation(buyer.email, buyer.name, recipientName, code, amount, senderMessage, scheduledDate);
+    }
+  }
 }

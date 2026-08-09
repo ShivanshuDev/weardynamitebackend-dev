@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import rateLimit from 'express-rate-limit';
 
 dotenv.config();
 
@@ -25,6 +26,9 @@ import notificationRoutes from './modules/notification/notification.routes';
 import subscriptionRoutes from './modules/subscription/subscription.routes';
 import quotationRoutes from './modules/quotation/quotation.routes';
 import idcardRoutes from './modules/idcard/idcard.routes';
+import configRoutes from './modules/config/config.routes';
+import membershipRoutes from './modules/membership/membership.routes';
+import giftRoutes from './modules/gift/gift.routes';
 import { initScheduler } from './utils/scheduler';
 
 const app = express();
@@ -38,13 +42,35 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// ─── Rate Limiting ────────────────────────────────────────────────────────────
+// Global rate limiter (100 requests per 15 minutes per IP)
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 100, 
+  message: { error: 'Too many requests from this IP, please try again after 15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Stricter rate limiter for authentication routes (e.g. 10 requests per 15 mins)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 10,
+  message: { error: 'Too many login attempts, please try again after 15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Apply global limiter to all /api routes
+app.use('/api', globalLimiter);
+
 // ─── Health Check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString(), version: '1.0.0' });
 });
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
-app.use('/api/auth', authRoutes);         // POST /api/auth/login etc.
+app.use('/api/auth', authLimiter, authRoutes);         // POST /api/auth/login etc.
 app.use('/api/user', userRoutes);         // GET /api/user/profile etc.
 app.use('/api/products', productRoutes);  // GET /api/products etc.
 app.use('/api/inventory', inventoryRoutes); // Inventory Management
@@ -63,6 +89,9 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api', quotationRoutes);
 app.use('/api', idcardRoutes);
+app.use('/api/config', configRoutes);
+app.use('/api/memberships', membershipRoutes);
+app.use('/api/gift', giftRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {

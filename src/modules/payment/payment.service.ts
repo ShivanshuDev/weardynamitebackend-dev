@@ -2,6 +2,7 @@ import { docClient, MAIN_TABLE } from '../../utils/awsClient';
 import { PutCommand, QueryCommand, UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import * as crypto from 'crypto';
 import * as OrderService from '../order/order.service';
+import * as GiftService from '../gift/gift.service';
 import { syncUser } from '../auth/auth.service';
 import { cache } from '../../utils/redisClient';
 
@@ -128,7 +129,7 @@ export const initiateTransaction = async (params: PaymentInitiateParams) => {
  * Validates the PayU callback and updates order status.
  */
 export const processPaymentCallback = async (payuData: any) => {
-  const { txnid, status, amount, hash, key } = payuData;
+  const { txnid, status, amount, hash, key, mihpayid } = payuData;
   
   // 1. Verify Hash (Reversed formula for callback)
   // Formula: salt|status||||||udf5|udf4|udf3|udf2|udf1|email|firstname|productinfo|amount|txnid|key
@@ -142,6 +143,15 @@ export const processPaymentCallback = async (payuData: any) => {
   const isSuccess = status === 'success';
   const orderStatus = isSuccess ? 'Pending' : 'Payment Failed';
   const paymentStatus = isSuccess ? 'Paid' : 'Failed';
+
+  if (txnid.startsWith('GIFT_')) {
+    if (isSuccess) {
+      await GiftService.fulfillGift(txnid, mihpayid);
+    }
+    return {
+      redirectUrl: `${FRONTEND_URL}/`
+    };
+  }
 
   // 2. Update Order
   await updatePaymentStatus(txnid, paymentStatus, payuData);

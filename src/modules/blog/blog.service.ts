@@ -28,7 +28,12 @@ export const listBlogs = async (adminMode = false) => {
       ScanIndexForward: false
     }));
     
-    const result = Items || [];
+    let result = Items || [];
+    // Filter out member_only blogs for public requests
+    if (!adminMode) {
+      result = result.filter(blog => blog.visibility !== 'member_only');
+    }
+
     await cache.set(cacheKey, result, 600); // 10 mins
     return result;
   }
@@ -63,6 +68,7 @@ export const createBlog = async (data: Record<string, any>) => {
     // GSI2 is NOT activated for Drafts to ensure privacy
     blogId: id,
     status: 'Draft',
+    visibility: data.visibility || 'public',
     ...data,
     createdAt: now,
     updatedAt: now
@@ -102,6 +108,7 @@ export const updateBlog = async (id: string, updates: Record<string, any>) => {
   }
 
   // Protect the record's identity (PK/SK/ID) from being overridden by incoming data
+  const { PK, SK, GSI1PK, GSI1SK, GSI2PK, GSI2SK, blogId: _bId, parentLiveId: _pId, createdAt: _ca, ...cleanUpdates } = updates;
   const updated = { ...draft, ...cleanUpdates, updatedAt: now };
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: updated }));
   

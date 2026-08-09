@@ -247,6 +247,69 @@ export class MailService {
   }
 
   /**
+   * Sends a gift card voucher to the recipient.
+   */
+  static async sendGiftCardEmail(to: string, recipientName: string, code: string, amount: number, senderMessage?: string, forBuyer: boolean = false, buyerName: string = '') {
+    const expiryDate = new Date();
+    expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+    const expiryStr = expiryDate.toLocaleDateString();
+    
+    const html = this.getGiftCardTemplate(recipientName, code, amount, senderMessage, expiryStr, forBuyer, buyerName);
+    const logoPath = this.getSignatureLogoPath();
+
+    try {
+      await this.transporter.sendMail({
+        from: MailService.DEFAULT_FROM,
+        to,
+        subject: forBuyer ? `Receipt: Your WearDynamite Gift to ${recipientName} 🎁` : `You received a WearDynamite Gift! 🎁`,
+        html,
+        attachments: [{ filename: 'logo.png', path: logoPath, cid: 'brandlogo' }],
+      });
+      console.log(`[MAIL SUCCESS] Gift card email sent to: ${to}`);
+    } catch (error) {
+      console.error(`[MAIL ERROR] Failed gift card email to ${to}:`, error);
+    }
+  }
+
+  /**
+   * Sends a gift delivered email to the buyer containing the card copy.
+   */
+  static async sendGiftDeliveredEmail(to: string, buyerName: string, recipientName: string, code: string, amount: number, senderMessage?: string) {
+    // Just reuse the beautiful gift card template, flagged for the buyer
+    await this.sendGiftCardEmail(to, recipientName, code, amount, senderMessage, true, buyerName);
+  }
+
+  /**
+   * Sends a gift purchase confirmation to the buyer (scheduled).
+   */
+  static async sendGiftPurchaseConfirmation(to: string, buyerName: string, recipientName: string, code: string, amount: number, senderMessage: string | undefined, scheduledDate: string | number) {
+    const dateStr = new Date(scheduledDate).toLocaleDateString();
+    const expiryDate = new Date();
+    expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+    const expiryStr = expiryDate.toLocaleDateString();
+    
+    // We send a customized version of the virtual card for the scheduled receipt
+    let html = this.getGiftCardTemplate(recipientName, code, amount, senderMessage, expiryStr, true, buyerName);
+    
+    // Inject the scheduling notice at the top
+    html = html.replace('<!-- SCHEDULE_NOTICE -->', `<div style="background:#fff3cd; color:#856404; padding:15px; margin-bottom:20px; border-radius:8px; text-align:center; font-weight:bold;">Your gift purchase is confirmed! The virtual card below will be sent to ${recipientName} on ${dateStr}.</div>`);
+
+    const logoPath = this.getSignatureLogoPath();
+    try {
+      await this.transporter.sendMail({
+        from: MailService.DEFAULT_FROM,
+        to,
+        subject: `Gift Purchase Confirmed 🎁 (Scheduled for ${dateStr})`,
+        html,
+        attachments: [{ filename: 'logo.png', path: logoPath, cid: 'brandlogo' }],
+      });
+      console.log(`[MAIL SUCCESS] Gift purchase confirmation email sent to: ${to}`);
+    } catch (error) {
+      console.error(`[MAIL ERROR] Failed gift purchase confirmation email to ${to}:`, error);
+    }
+  }
+
+  /**
    * Generates a premium Personnel Application Form PDF in-memory.
    */
   static async generatePersonnelPDF(employee: any): Promise<Buffer> {
@@ -411,6 +474,82 @@ export class MailService {
   }
 
   // --- PRIVATE TEMPLATES ---
+
+  private static getGiftCardTemplate(recipientName: string, code: string, amount: number, senderMessage?: string, expiryStr?: string, forBuyer?: boolean, buyerName?: string) {
+    const accentColor = '#FF5F1F';
+    const bgColor = '#000000';
+
+    const greeting = forBuyer 
+        ? `<h2 style="text-transform: uppercase;">Hi ${buyerName},</h2><p>Here is a copy of the gift card you purchased for <strong>${recipientName}</strong>.</p>` 
+        : `<h2 style="text-transform: uppercase;">A Gift For You!</h2><p>Hi ${recipientName || 'there'}, you've received a WearDynamite Gift Card worth <strong>₹${amount}</strong>.</p>`;
+
+    return `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 0; }
+          .container { width: 100%; max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+          .header { background-color: ${bgColor}; padding: 30px; text-align: center; border-bottom: 4px solid ${accentColor}; }
+          .logo-img { max-width: 180px; height: auto; }
+          .content { padding: 40px; text-align: center; color: #333; }
+          
+          /* Virtual Card Styles */
+          .virtual-card { margin: 30px auto; width: 100%; max-width: 400px; aspect-ratio: 1.586; background: linear-gradient(135deg, #1e293b, #020617); border-radius: 20px; padding: 30px; color: #ffffff; text-align: left; position: relative; box-shadow: 0 15px 35px rgba(0,0,0,0.3); overflow: hidden; border: 1px solid rgba(255,255,255,0.1); }
+          .card-brand { font-size: 10px; font-weight: 900; letter-spacing: 2px; opacity: 0.7; }
+          .card-title { font-size: 20px; font-weight: 300; letter-spacing: 1px; margin-top: 20px; margin-bottom: 5px; }
+          .card-amount { font-size: 36px; font-weight: 900; margin-bottom: 5px; }
+          .voucher-code { display: inline-block; font-family: monospace; font-size: 14px; letter-spacing: 2px; padding: 6px 12px; background: rgba(255,255,255,0.1); border-radius: 6px; margin-bottom: 25px; }
+          .card-details p { margin: 0; font-size: 10px; font-weight: 800; letter-spacing: 1px; opacity: 0.7; text-transform: uppercase; }
+          .card-details p span { font-size: 14px; opacity: 1; color: #fff; display: block; margin-top: 4px; }
+          .card-expiry { position: absolute; top: 30px; right: 30px; font-size: 10px; font-weight: 800; opacity: 0.7; }
+          
+          .message-box { margin-top: 20px; font-style: italic; color: #555; background: #eee; padding: 15px; border-radius: 8px; }
+          .terms { font-size: 11px; color: #777; margin-top: 30px; line-height: 1.5; padding: 15px; background: #fdfdfd; border-radius: 8px; border: 1px solid #eaeaea; text-align: left; }
+          .footer { background-color: #f9f9f9; padding: 30px; text-align: center; font-size: 13px; color: #999; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <img src="cid:brandlogo" alt="WearDynamite Logo" class="logo-img">
+          </div>
+          <div class="content">
+            <!-- SCHEDULE_NOTICE -->
+            
+            ${greeting}
+            
+            <div class="virtual-card">
+              <div class="card-brand">DYNAMITE STUDIO</div>
+              <div class="card-expiry">EXP: ${expiryStr || '1 YR'}</div>
+              <div class="card-title">GIFT CARD</div>
+              <div class="card-amount">₹${amount}</div>
+              <div class="voucher-code">CODE: ${code}</div>
+              <div class="card-details">
+                <p>TO: <span>${recipientName}</span></p>
+              </div>
+            </div>
+
+            ${senderMessage ? `<div class="message-box">"${senderMessage}"</div>` : ''}
+            
+            <div class="terms">
+              <strong>Terms & Conditions:</strong><br/>
+              * Use the code above at checkout to claim your gift.<br/>
+              * Valid for 1 year from the date of purchase.<br/>
+              * This gift card is fully transferable and can be used by anyone.<br/>
+              * This gift card will not be refunded in any case.
+            </div>
+          </div>
+          <div class="footer">
+            &copy; ${new Date().getFullYear()} WEARDYNAMITE. Institutional Grade Luxury Streetwear.
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
 
   private static resolveImageUrl(path: string) {
     if (!path) return '';

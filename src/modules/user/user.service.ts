@@ -3,6 +3,10 @@ import { GetCommand, PutCommand, QueryCommand, DeleteCommand, UpdateCommand } fr
 import { v4 as uuidv4 } from 'uuid';
 import { cache } from '../../utils/redisClient';
 
+import { getUserOrders } from '../order/order.service';
+import { getMembership } from '../membership/membership.service';
+import { ScanCommand } from '@aws-sdk/lib-dynamodb';
+
 export const getProfile = async (userId: string) => {
   const cacheKey = `user:${userId}`;
   const cached = await cache.get(cacheKey);
@@ -250,25 +254,74 @@ export const markNotificationRead = async (userId: string, notifId: string) => {
 };
 
 export const markAllNotificationsRead = async (userId: string) => {
-  const all = await listUserNotifications(userId, 50);
-  const unread = all.filter(n => !n.isRead);
+  const notifications = await listUserNotifications(userId, 50);
+  for (const n of notifications) {
+    if (!n.isRead) await markNotificationRead(userId, n.id);
+  }
+  return { message: 'All notifications marked as read' };
+};
+
+export const getPayments = async (userId: string) => {
+  const payments: any[] = [];
   
-  const promises = unread.map(n => 
-    docClient.send(new UpdateCommand({
+  // 1. Orders
+  try {
+    const orders = await getUserOrders(userId);
+    orders.forEach(o => {
+      payments.push({
+        transactionId: o.txnid || o.order_id || (o.PK && o.PK.includes('#') ? o.PK.split('#')[1] : 'N/A'),
+        paidFor: 'Order',
+        amount: o.total_amount || 0,
+        date: o.date ? (typeof o.date === 'string' ? new Date(o.date).getTime() : o.date) : (o.createdAt || Date.now()),
+        status: o.status,
+        type: 'ORDER'
+      });
+    });
+  } catch (e) {}
+
+  // 2. Memberships
+  try {
+    const membership = await getMembership(userId);
+    if (membership && membership.history) {
+      membership.history.forEach((h: any) => {
+        payments.push({
+          transactionId: h.transactionId,
+          paidFor: `Membership (${h.duration.replace('_', ' ')})`,
+          amount: h.pricePaid,
+          date: h.date,
+          status: 'Success',
+          type: 'MEMBERSHIP'
+        });
+      });
+    }
+  } catch(e) {}
+
+  // 3. Gifts
+  try {
+    const { Items: gifts } = await docClient.send(new ScanCommand({
       TableName: MAIN_TABLE,
-      Key: { PK: `USER#${userId}`, SK: n.SK },
-      UpdateExpression: 'SET isRead = :val, expires_at = :exp',
-      ExpressionAttributeValues: { 
-        ':val': true,
-        ':exp': Math.floor((n.created_at + 7 * 24 * 60 * 60 * 1000) / 1000)
+      FilterExpression: 'begins_with(PK, :pk) AND SK = :sk AND senderId = :uid',
+      ExpressionAttributeValues: {
+        ':pk': 'GIFT#',
+        ':sk': 'DETAILS',
+        ':uid': userId
       }
-    }))
-  );
-  
-  await Promise.allSettled(promises);
-  await cache.del(`user:${userId}`);
-  await cache.delPattern('users:list:*');
-  return { success: true };
+    }));
+    if (gifts) {
+      gifts.forEach(g => {
+        payments.push({
+          transactionId: g.txnid,
+          paidFor: `Gift (${g.giftType})`,
+          amount: g.amount,
+          date: g.createdAt,
+          status: g.status,
+          type: 'GIFT'
+        });
+      });
+    }
+  } catch (e) {}
+
+  return payments.sort((a, b) => b.date - a.date);
 };
 
 // ─── Admin Users ─────────────────────────────────────────────────────────────
