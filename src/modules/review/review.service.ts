@@ -40,11 +40,10 @@ export const getReviewsByProduct = async (productId: string) => {
 };
 
 export const addReview = async (userId: string, productId: string, orderId: string, data: { rating: number; title?: string; comment: string; name: string; imageUrls?: string[] }) => {
-  // 1. Verify Delivered Order
+  // 1. Verify Order
   const order = await getOrderDetail(orderId);
   if (!order) throw new Error('Order not found');
   if (order.user_id !== userId) throw new Error('Unauthorized: Order does not belong to user');
-  if (order.status !== 'Delivered') throw new Error('Reviews are only allowed after the item is Delivered');
 
   // 2. Verify Product is in Order
   const hasProduct = order.items?.some((i: any) => i.product_id === productId);
@@ -61,7 +60,7 @@ export const addReview = async (userId: string, productId: string, orderId: stri
     productId,
     orderId,
     ...data,
-    status: 'Pending', // Pending admin approval
+    status: 'Approved',
     createdAt: Date.now()
   };
   await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: record }));

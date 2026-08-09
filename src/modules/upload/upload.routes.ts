@@ -8,6 +8,8 @@ const admin = adminOnly as any;
 
 // Admin: get presigned upload URL
 router.post('/admin/upload/presigned-url', auth, admin, UploadController.requestPresignedUrl);
+// User: get presigned upload URL (restricted to specific folders in controller)
+router.post('/upload/presigned-url', auth, UploadController.requestUserPresignedUrl);
 // Admin: delete file from S3
 router.delete('/admin/upload', auth, admin, UploadController.deleteFile);
 // Dev: mock S3 receiver

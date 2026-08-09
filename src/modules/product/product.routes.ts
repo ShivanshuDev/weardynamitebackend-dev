@@ -11,6 +11,7 @@ router.get('/search', ProductController.searchProducts);
 router.get('/new-arrivals', ProductController.getNewArrivals);
 router.get('/best-sellers', ProductController.getBestSellers);
 router.get('/:id', ProductController.getProduct);
+router.get('/:id/related', ProductController.getRelatedProducts);
 router.get('/:id/reviews', ReviewController.getReviews);
 router.post('/:id/reviews', authenticate as any, ReviewController.submitReview as any);
 

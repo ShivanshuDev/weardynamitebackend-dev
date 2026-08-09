@@ -58,6 +58,8 @@ export interface Product {
   isMostPopular?: boolean;
   isShippingApplicable: boolean;
   shippingCost: number;
+  views?: number;
+  clicks?: number;
   created_at: number;
   created_by: string;
   updated_at: number;
@@ -92,6 +94,15 @@ export const createProduct = async (
   // ✅ Image Minimum Requirement
   if (!data.images || data.images.length < 3) {
     throw new Error('Institutional requirement: Minimum 3 images required for product catalog.');
+  }
+
+  if (
+    (data.mrp !== undefined && Number(data.mrp) < 0) || 
+    (data.salePrice !== undefined && Number(data.salePrice) < 0) || 
+    (data.stock !== undefined && Number(data.stock) < 0) ||
+    (data.current_stock !== undefined && Number(data.current_stock) < 0)
+  ) {
+    throw new Error('Numeric values (MRP, Sale Price, Stock) cannot be negative.');
   }
 
   const product: any = {
@@ -158,6 +169,9 @@ export const createProduct = async (
     isMostPopular: !!data.isMostPopular,
     isShippingApplicable: !!data.isShippingApplicable,
     shippingCost: Number(data.shippingCost) || 0,
+    
+    views: Number(data.views) || 0,
+    clicks: Number(data.clicks) || 0,
 
     created_at: now,
     created_by: data.user_info || 'system',
@@ -208,6 +222,33 @@ export const getProduct = async (productId: string) => {
     await cache.set(cacheKey, Item, 900); // Cache for 15 mins
   }
   return Item;
+};
+
+/**
+ * GET RELATED PRODUCTS
+ */
+export const getRelatedProducts = async (productId: string) => {
+  const product = await getProduct(productId);
+  if (!product) return [];
+
+  const category = product.category;
+  if (!category) return [];
+
+  const { Items } = await docClient.send(
+    new QueryCommand({
+      TableName: INVENTORY_TABLE,
+      IndexName: 'GSI1',
+      KeyConditionExpression: 'GSI1PK = :cat AND GSI1SK = :stat',
+      ExpressionAttributeValues: {
+        ':cat': `CAT#${category}`,
+        ':stat': 'STATUS#Active'
+      },
+      Limit: 10
+    })
+  );
+
+  const related = (Items || []).filter(p => p.product_id !== productId).slice(0, 8);
+  return related;
 };
 
 /**
@@ -388,6 +429,15 @@ export const updateProduct = async (
     throw new Error('Institutional requirement: Minimum 3 images required even for updates.');
   }
 
+  if (
+    (updates.mrp !== undefined && Number(updates.mrp) < 0) || 
+    (updates.salePrice !== undefined && Number(updates.salePrice) < 0) || 
+    (updates.stock !== undefined && Number(updates.stock) < 0) ||
+    (updates.current_stock !== undefined && Number(updates.current_stock) < 0)
+  ) {
+    throw new Error('Numeric values (MRP, Sale Price, Stock) cannot be negative.');
+  }
+
   const allowedFields = [
     'product_name',
     'brand',
@@ -432,7 +482,9 @@ export const updateProduct = async (
     'isMostPopular',
     'isShippingApplicable',
     'shippingCost',
-    'aboutThisItem'
+    'aboutThisItem',
+    'views',
+    'clicks'
   ];
 
   const keys = Object.keys(updates).filter(k =>

@@ -38,6 +38,43 @@ export const requestPresignedUrl = async (req: Request, res: Response) => {
   }
 };
 
+export const requestUserPresignedUrl = async (req: Request, res: Response) => {
+  try {
+    const { fileName, fileType, folder } = req.body;
+    if (!fileName || !fileType) {
+      return res.status(400).json({ message: 'fileName and fileType are required' });
+    }
+    
+    // Restrict folder for non-admin users to prevent abuse
+    const allowedFolders = ['reviews', 'avatars'];
+    const safeFolder = allowedFolders.includes(folder) ? folder : 'user-uploads';
+    
+    const bucketName = process.env.S3_BUCKET_NAME;
+    if (!bucketName) throw new Error('S3_BUCKET_NAME not configured');
+
+    const cleanFileName = fileName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '');
+    const fileKey = `${safeFolder}/${Date.now()}_${cleanFileName}`;
+
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: fileKey,
+      ContentType: fileType,
+    });
+
+    // URL valid for 5 minutes
+    const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
+
+    res.json({
+      uploadUrl,
+      fileKey,
+      fileUrl: `https://${bucketName}.s3.${process.env.AWS_REGION || 'ap-southeast-2'}.amazonaws.com/${fileKey}`
+    });
+  } catch (e: any) {
+    console.error('[S3 User Presigned URL Error]:', e.message);
+    res.status(400).json({ message: e.message });
+  }
+};
+
 export const deleteFile = async (req: Request, res: Response) => {
   try {
     const { fileKey } = req.body;

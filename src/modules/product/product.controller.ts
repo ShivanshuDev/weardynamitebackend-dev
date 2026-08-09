@@ -47,6 +47,11 @@ export const getProduct = async (req: Request, res: Response) => {
   catch (e: any) { res.status(404).json({ message: e.message }); }
 };
 
+export const getRelatedProducts = async (req: Request, res: Response) => {
+  try { res.json(await ProductService.getRelatedProducts(req.params.id as string)); }
+  catch (e: any) { res.status(400).json({ message: e.message }); }
+};
+
 export const getNewArrivals = async (_req: Request, res: Response) => res.json(await ProductService.getNewArrivals());
 export const getBestSellers = async (_req: Request, res: Response) => res.json(await ProductService.getBestSellers());
 

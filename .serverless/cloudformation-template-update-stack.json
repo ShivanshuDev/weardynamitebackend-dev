@@ -190,7 +190,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/weardynamite-backend/dev/1786205667133-2026-08-08T16:14:27.133Z/weardynamite-backend.zip"
+          "S3Key": "serverless/weardynamite-backend/dev/1786267226454-2026-08-09T09:20:26.454Z/weardynamite-backend.zip"
         },
         "Handler": "dist/handler.handler",
         "Runtime": "nodejs20.x",
@@ -234,14 +234,14 @@
         "ApiLogGroup"
       ]
     },
-    "ApiLambdaVersionRcNgz3BBCIFptKPshRdgoe5eY6D3ybrEN9dCYYdB7PI": {
+    "ApiLambdaVersionOigVHb0G8Xbjx0fPma5uffno74QhV2dL14yQ9ZvlU": {
       "Type": "AWS::Lambda::Version",
       "DeletionPolicy": "Retain",
       "Properties": {
         "FunctionName": {
           "Ref": "ApiLambdaFunction"
         },
-        "CodeSha256": "s4aq+8w789jw8AJyyCiaGC+fmbXUhIk019d4ZS3TQk0="
+        "CodeSha256": "HxgCQHMl99hpKQMsiQ27suM5RHGlnI9ARYWOJYkRuww="
       }
     },
     "HttpApi": {
@@ -352,7 +352,7 @@
     "ApiLambdaFunctionQualifiedArn": {
       "Description": "Current Lambda function version",
       "Value": {
-        "Ref": "ApiLambdaVersionRcNgz3BBCIFptKPshRdgoe5eY6D3ybrEN9dCYYdB7PI"
+        "Ref": "ApiLambdaVersionOigVHb0G8Xbjx0fPma5uffno74QhV2dL14yQ9ZvlU"
       },
       "Export": {
         "Name": "sls-weardynamite-backend-dev-ApiLambdaFunctionQualifiedArn"
