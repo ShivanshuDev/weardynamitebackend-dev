@@ -16,4 +16,10 @@ router.post('/admin/id-cards/student', auth, admin, IdCardController.saveStudent
 router.put('/admin/id-cards/student/:id', auth, admin, IdCardController.updateStudent);
 router.delete('/admin/id-cards/student/:id', auth, admin, IdCardController.deleteStudent);
 
+// ID Card Templates
+router.get('/admin/id-cards/templates', auth, admin, IdCardController.listTemplates);
+router.post('/admin/id-cards/templates', auth, admin, IdCardController.createTemplate);
+router.put('/admin/id-cards/templates/:id', auth, admin, IdCardController.updateTemplate);
+router.delete('/admin/id-cards/templates/:id', auth, admin, IdCardController.deleteTemplate);
+
 export default router;

@@ -70,3 +70,43 @@ export const listStudents = async (req: Request, res: Response) => {
     res.status(400).json({ message: e.message });
   }
 };
+
+export const listTemplates = async (req: Request, res: Response) => {
+  try {
+    const schoolId = String(req.query.schoolId || 'shaheed_inter_college');
+    const result = await IdCardService.listTemplates(schoolId);
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+export const createTemplate = async (req: Request, res: Response) => {
+  try {
+    const schoolId = String(req.query.schoolId || 'shaheed_inter_college');
+    const result = await IdCardService.createTemplate(schoolId, req.body);
+    res.status(201).json(result);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+export const updateTemplate = async (req: Request, res: Response) => {
+  try {
+    const schoolId = String(req.query.schoolId || 'shaheed_inter_college');
+    const result = await IdCardService.updateTemplate(schoolId, String(req.params.id), req.body);
+    res.json(result);
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
+
+export const deleteTemplate = async (req: Request, res: Response) => {
+  try {
+    const schoolId = String(req.query.schoolId || 'shaheed_inter_college');
+    await IdCardService.deleteTemplate(schoolId, String(req.params.id));
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(400).json({ message: e.message });
+  }
+};
