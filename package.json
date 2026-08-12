@@ -18,6 +18,7 @@
     "@aws-sdk/client-dynamodb": "^3.1019.0",
     "@aws-sdk/client-s3": "^3.1023.0",
     "@aws-sdk/client-sesv2": "^3.1029.0",
+    "@aws-sdk/client-sqs": "^3.1108.0",
     "@aws-sdk/lib-dynamodb": "^3.1019.0",
     "@aws-sdk/s3-request-presigner": "^3.1023.0",
     "cors": "^2.8.6",
@@ -33,6 +34,7 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@types/aws-lambda": "^8.10.162",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.5.0",

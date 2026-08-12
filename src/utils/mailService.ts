@@ -29,10 +29,444 @@ export class MailService {
     return path.resolve(__dirname, '..', '..', '..', 'logo_concept_10_signature_thread_1774216216632.png');
   }
 
+  // --- SQS PROXIES ---
+
+  static async sendWelcomeEmail(to: string, name: string) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendWelcomeEmail',
+            payload: { to, name }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendWelcomeEmail'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendWelcomeEmail'}, falling back to sync:`, err);
+        return this._executeSendWelcomeEmail(to, name);
+      }
+    } else {
+      return this._executeSendWelcomeEmail(to, name);
+    }
+  }
+
+
+  static async sendSubscriptionConfirmation(to: string, name: string) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendSubscriptionConfirmation',
+            payload: { to, name }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendSubscriptionConfirmation'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendSubscriptionConfirmation'}, falling back to sync:`, err);
+        return this._executeSendSubscriptionConfirmation(to, name);
+      }
+    } else {
+      return this._executeSendSubscriptionConfirmation(to, name);
+    }
+  }
+
+
+  static async sendOrderStatusEmail(to: string, name: string, order: any, status: string) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendOrderStatusEmail',
+            payload: { to, name, order, status }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendOrderStatusEmail'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendOrderStatusEmail'}, falling back to sync:`, err);
+        return this._executeSendOrderStatusEmail(to, name, order, status);
+      }
+    } else {
+      return this._executeSendOrderStatusEmail(to, name, order, status);
+    }
+  }
+
+
+  static async sendNewProductEmail(to: string, name: string, product: any) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendNewProductEmail',
+            payload: { to, name, product }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendNewProductEmail'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendNewProductEmail'}, falling back to sync:`, err);
+        return this._executeSendNewProductEmail(to, name, product);
+      }
+    } else {
+      return this._executeSendNewProductEmail(to, name, product);
+    }
+  }
+
+
+  static async sendGiftCardEmail(to: string, recipientName: string, code: string, amount: number, senderMessage?: string, forBuyer: boolean = false, buyerName: string = '') {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendGiftCardEmail',
+            payload: { to, recipientName, code, amount, senderMessage, forBuyer, buyerName }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendGiftCardEmail'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendGiftCardEmail'}, falling back to sync:`, err);
+        return this._executeSendGiftCardEmail(to, recipientName, code, amount, senderMessage, forBuyer, buyerName);
+      }
+    } else {
+      return this._executeSendGiftCardEmail(to, recipientName, code, amount, senderMessage, forBuyer, buyerName);
+    }
+  }
+
+
+  static async sendGiftDeliveredEmail(to: string, buyerName: string, recipientName: string, code: string, amount: number, senderMessage?: string) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendGiftDeliveredEmail',
+            payload: { to, buyerName, recipientName, code, amount, senderMessage }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendGiftDeliveredEmail'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendGiftDeliveredEmail'}, falling back to sync:`, err);
+        return this._executeSendGiftDeliveredEmail(to, buyerName, recipientName, code, amount, senderMessage);
+      }
+    } else {
+      return this._executeSendGiftDeliveredEmail(to, buyerName, recipientName, code, amount, senderMessage);
+    }
+  }
+
+
+  static async sendGiftPurchaseConfirmation(to: string, buyerName: string, recipientName: string, code: string, amount: number, senderMessage: string | undefined, scheduledDate: string | number) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendGiftPurchaseConfirmation',
+            payload: { to, buyerName, recipientName, code, amount, senderMessage, scheduledDate }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendGiftPurchaseConfirmation'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendGiftPurchaseConfirmation'}, falling back to sync:`, err);
+        return this._executeSendGiftPurchaseConfirmation(to, buyerName, recipientName, code, amount, senderMessage, scheduledDate);
+      }
+    } else {
+      return this._executeSendGiftPurchaseConfirmation(to, buyerName, recipientName, code, amount, senderMessage, scheduledDate);
+    }
+  }
+
+
+  static async sendOnboardingWelcomeEmail(to: string, employee: any) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendOnboardingWelcomeEmail',
+            payload: { to, employee }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendOnboardingWelcomeEmail'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendOnboardingWelcomeEmail'}, falling back to sync:`, err);
+        return this._executeSendOnboardingWelcomeEmail(to, employee);
+      }
+    } else {
+      return this._executeSendOnboardingWelcomeEmail(to, employee);
+    }
+  }
+
+
+  static async sendBirthdayEmail(to: string, name: string) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendBirthdayEmail',
+            payload: { to, name }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendBirthdayEmail'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendBirthdayEmail'}, falling back to sync:`, err);
+        return this._executeSendBirthdayEmail(to, name);
+      }
+    } else {
+      return this._executeSendBirthdayEmail(to, name);
+    }
+  }
+
+
+  static async sendPayrollPaymentEmail(to: string, name: string, data: any) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendPayrollPaymentEmail',
+            payload: { to, name, data }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendPayrollPaymentEmail'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendPayrollPaymentEmail'}, falling back to sync:`, err);
+        return this._executeSendPayrollPaymentEmail(to, name, data);
+      }
+    } else {
+      return this._executeSendPayrollPaymentEmail(to, name, data);
+    }
+  }
+
+
+  static async sendPayrollLedgerEmail(to: string, name: string, records: any[]) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendPayrollLedgerEmail',
+            payload: { to, name, records }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendPayrollLedgerEmail'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendPayrollLedgerEmail'}, falling back to sync:`, err);
+        return this._executeSendPayrollLedgerEmail(to, name, records);
+      }
+    } else {
+      return this._executeSendPayrollLedgerEmail(to, name, records);
+    }
+  }
+
+
+  static async sendCustomBroadcastEmail(to: string, name: string, title: string, body: string, image?: string, product?: any) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendCustomBroadcastEmail',
+            payload: { to, name, title, body, image, product }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendCustomBroadcastEmail'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendCustomBroadcastEmail'}, falling back to sync:`, err);
+        return this._executeSendCustomBroadcastEmail(to, name, title, body, image, product);
+      }
+    } else {
+      return this._executeSendCustomBroadcastEmail(to, name, title, body, image, product);
+    }
+  }
+
+
+  static async sendBulkInquiryNotification(inquiry: any) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendBulkInquiryNotification',
+            payload: { inquiry }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendBulkInquiryNotification'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendBulkInquiryNotification'}, falling back to sync:`, err);
+        return this._executeSendBulkInquiryNotification(inquiry);
+      }
+    } else {
+      return this._executeSendBulkInquiryNotification(inquiry);
+    }
+  }
+
+
+  static async sendInquiryConfirmation(to: string, name: string, inquiry: any) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendInquiryConfirmation',
+            payload: { to, name, inquiry }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendInquiryConfirmation'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendInquiryConfirmation'}, falling back to sync:`, err);
+        return this._executeSendInquiryConfirmation(to, name, inquiry);
+      }
+    } else {
+      return this._executeSendInquiryConfirmation(to, name, inquiry);
+    }
+  }
+
+
+  static async sendStandardInquiryConfirmation(to: string, name: string, inquiry: any) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendStandardInquiryConfirmation',
+            payload: { to, name, inquiry }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendStandardInquiryConfirmation'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendStandardInquiryConfirmation'}, falling back to sync:`, err);
+        return this._executeSendStandardInquiryConfirmation(to, name, inquiry);
+      }
+    } else {
+      return this._executeSendStandardInquiryConfirmation(to, name, inquiry);
+    }
+  }
+
+
+  static async sendStandardInquiryAdminNotification(inquiry: any) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendStandardInquiryAdminNotification',
+            payload: { inquiry }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendStandardInquiryAdminNotification'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendStandardInquiryAdminNotification'}, falling back to sync:`, err);
+        return this._executeSendStandardInquiryAdminNotification(inquiry);
+      }
+    } else {
+      return this._executeSendStandardInquiryAdminNotification(inquiry);
+    }
+  }
+
+
+  static async sendInquiryStatusEmail(to: string, name: string, inquiry: any, status: string) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendInquiryStatusEmail',
+            payload: { to, name, inquiry, status }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendInquiryStatusEmail'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendInquiryStatusEmail'}, falling back to sync:`, err);
+        return this._executeSendInquiryStatusEmail(to, name, inquiry, status);
+      }
+    } else {
+      return this._executeSendInquiryStatusEmail(to, name, inquiry, status);
+    }
+  }
+
+
+  static async sendOtpEmail(to: string, otp: string) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'sendOtpEmail',
+            payload: { to, otp }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'sendOtpEmail'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'sendOtpEmail'}, falling back to sync:`, err);
+        return this._executeSendOtpEmail(to, otp);
+      }
+    } else {
+      return this._executeSendOtpEmail(to, otp);
+    }
+  }
+
+
   /**
    * Sends a colorful, responsive Welcome Email with the WearDynamite logo.
    */
-  static async sendWelcomeEmail(to: string, name: string) {
+  static async _executeSendWelcomeEmail(to: string, name: string) {
     const html = this.getWelcomeTemplate(name);
     const logoPath = this.getSignatureLogoPath();
 
@@ -106,7 +540,7 @@ export class MailService {
   /**
    * Sends a congratulatory email for joining the Dynamite Club.
    */
-  static async sendSubscriptionConfirmation(to: string, name: string) {
+  static async _executeSendSubscriptionConfirmation(to: string, name: string) {
     const html = this.getSubscriptionTemplate(name);
     const logoPath = this.getSignatureLogoPath();
 
@@ -207,7 +641,7 @@ export class MailService {
   /**
    * Sends an order status update email (Shipped, Delivered, etc.).
    */
-  static async sendOrderStatusEmail(to: string, name: string, order: any, status: string) {
+  static async _executeSendOrderStatusEmail(to: string, name: string, order: any, status: string) {
     const html = this.getOrderStatusTemplate(name, order, status);
     const logoPath = this.getSignatureLogoPath();
 
@@ -228,7 +662,7 @@ export class MailService {
   /**
    * Sends a marketing email for a new product drop.
    */
-  static async sendNewProductEmail(to: string, name: string, product: any) {
+  static async _executeSendNewProductEmail(to: string, name: string, product: any) {
     const html = this.getNewProductTemplate(name, product);
     const logoPath = this.getSignatureLogoPath();
 
@@ -249,7 +683,7 @@ export class MailService {
   /**
    * Sends a gift card voucher to the recipient.
    */
-  static async sendGiftCardEmail(to: string, recipientName: string, code: string, amount: number, senderMessage?: string, forBuyer: boolean = false, buyerName: string = '') {
+  static async _executeSendGiftCardEmail(to: string, recipientName: string, code: string, amount: number, senderMessage?: string, forBuyer: boolean = false, buyerName: string = '') {
     const expiryDate = new Date();
     expiryDate.setFullYear(expiryDate.getFullYear() + 1);
     const expiryStr = expiryDate.toLocaleDateString();
@@ -274,7 +708,7 @@ export class MailService {
   /**
    * Sends a gift delivered email to the buyer containing the card copy.
    */
-  static async sendGiftDeliveredEmail(to: string, buyerName: string, recipientName: string, code: string, amount: number, senderMessage?: string) {
+  static async _executeSendGiftDeliveredEmail(to: string, buyerName: string, recipientName: string, code: string, amount: number, senderMessage?: string) {
     // Just reuse the beautiful gift card template, flagged for the buyer
     await this.sendGiftCardEmail(to, recipientName, code, amount, senderMessage, true, buyerName);
   }
@@ -282,7 +716,7 @@ export class MailService {
   /**
    * Sends a gift purchase confirmation to the buyer (scheduled).
    */
-  static async sendGiftPurchaseConfirmation(to: string, buyerName: string, recipientName: string, code: string, amount: number, senderMessage: string | undefined, scheduledDate: string | number) {
+  static async _executeSendGiftPurchaseConfirmation(to: string, buyerName: string, recipientName: string, code: string, amount: number, senderMessage: string | undefined, scheduledDate: string | number) {
     const dateStr = new Date(scheduledDate).toLocaleDateString();
     const expiryDate = new Date();
     expiryDate.setFullYear(expiryDate.getFullYear() + 1);
@@ -404,7 +838,7 @@ export class MailService {
   /**
    * Generates a premium Personnel Application Form PDF and dispatches it via email.
    */
-  static async sendOnboardingWelcomeEmail(to: string, employee: any) {
+  static async _executeSendOnboardingWelcomeEmail(to: string, employee: any) {
     try {
       const pdfBuffer = await this.generatePersonnelPDF(employee);
       const html = this.getOnboardingWelcomeTemplate(employee.name);
@@ -455,7 +889,7 @@ export class MailService {
   /**
    * Sends a personalized Birthday email.
    */
-  static async sendBirthdayEmail(to: string, name: string) {
+  static async _executeSendBirthdayEmail(to: string, name: string) {
     const html = this.getBirthdayTemplate(name);
     const logoPath = this.getSignatureLogoPath();
 
@@ -562,7 +996,7 @@ export class MailService {
   /**
    * Sends a high-fidelity Payroll Disbursement confirmation email.
    */
-  static async sendPayrollPaymentEmail(to: string, name: string, data: any) {
+  static async _executeSendPayrollPaymentEmail(to: string, name: string, data: any) {
     const html = this.getPayrollPaymentTemplate(name, data);
     const logoPath = this.getSignatureLogoPath();
 
@@ -583,7 +1017,7 @@ export class MailService {
   /**
    * Sends a comprehensive Payroll Ledger summary email.
    */
-  static async sendPayrollLedgerEmail(to: string, name: string, records: any[]) {
+  static async _executeSendPayrollLedgerEmail(to: string, name: string, records: any[]) {
     const html = this.getPayrollLedgerTemplate(name, records);
     const logoPath = this.getSignatureLogoPath();
 
@@ -604,7 +1038,7 @@ export class MailService {
   /**
    * Sends a high-fidelity Custom Broadcast (Marketing/Campaign) email.
    */
-  static async sendCustomBroadcastEmail(to: string, name: string, title: string, body: string, image?: string, product?: any) {
+  static async _executeSendCustomBroadcastEmail(to: string, name: string, title: string, body: string, image?: string, product?: any) {
     const html = this.getCustomBroadcastTemplate(name, title, body, image, product);
     const logoPath = this.getSignatureLogoPath();
 
@@ -772,7 +1206,7 @@ export class MailService {
   /**
    * Notify Admin about a new Bulk Order Lead.
    */
-  static async sendBulkInquiryNotification(inquiry: any) {
+  static async _executeSendBulkInquiryNotification(inquiry: any) {
     const html = this.getBulkInquiryAdminTemplate(inquiry);
     const subject = `🔥 NEW LEAD: ${inquiry.orgName} - ${inquiry.orderType || 'General'}`;
 
@@ -797,7 +1231,7 @@ export class MailService {
   /**
    * Send confirmation receipt to the Customer for their Inquiry.
    */
-  static async sendInquiryConfirmation(to: string, name: string, inquiry: any) {
+  static async _executeSendInquiryConfirmation(to: string, name: string, inquiry: any) {
     const html = this.getInquiryConfirmationTemplate(name, inquiry);
     const subject = 'Inquiry Received - WearDynamite Custom ⚡';
 
@@ -822,7 +1256,7 @@ export class MailService {
   /**
    * Send confirmation receipt for standard Contact Form.
    */
-  static async sendStandardInquiryConfirmation(to: string, name: string, inquiry: any) {
+  static async _executeSendStandardInquiryConfirmation(to: string, name: string, inquiry: any) {
     const html = this.getStandardInquiryConfirmationTemplate(name, inquiry);
     const subject = 'Message Received - WearDynamite Support ✨';
 
@@ -847,7 +1281,7 @@ export class MailService {
   /**
    * Notify Admin about a Standard Message.
    */
-  static async sendStandardInquiryAdminNotification(inquiry: any) {
+  static async _executeSendStandardInquiryAdminNotification(inquiry: any) {
     const html = this.getStandardInquiryAdminTemplate(inquiry);
     const subject = `📩 NEW MESSAGE: From ${inquiry.fullName || inquiry.name}`;
 
@@ -872,7 +1306,7 @@ export class MailService {
   /**
    * Notify Customer about Inquiry Status Update.
    */
-  static async sendInquiryStatusEmail(to: string, name: string, inquiry: any, status: string) {
+  static async _executeSendInquiryStatusEmail(to: string, name: string, inquiry: any, status: string) {
     const html = this.getInquiryStatusUpdateTemplate(name, inquiry, status);
     const subject = `Inquiry Update: ${inquiry.orgName} - ${status} ✨`;
 
@@ -1073,7 +1507,7 @@ export class MailService {
   /**
    * Helper to send a simple OTP email using our premium design system
    */
-  static async sendOtpEmail(to: string, otp: string) {
+  static async _executeSendOtpEmail(to: string, otp: string) {
     const html = `
       <div style="font-family: 'Inter', Helvetica, Arial, sans-serif; background-color: #f8fafc; padding: 40px;">
         <div style="max-width: 500px; margin: auto; background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 50px rgba(0,0,0,0.05); border: 1px solid #edf2f7;">

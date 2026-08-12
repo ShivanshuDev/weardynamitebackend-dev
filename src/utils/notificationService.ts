@@ -13,7 +13,7 @@ export class NotificationService {
   /**
    * Notify user about order confirmation
    */
-  static async sendOrderConfirmed(order: any, items: any[], user: any) {
+  static async _executeSendOrderConfirmed(order: any, items: any[], user: any) {
     // 1. Generate Invoice PDF
     const pdfBuffer = await PDFService.generateInvoice({ ...order, items }).catch(err => {
         console.error('[PDF ERROR] Failed to generate invoice:', err);
@@ -42,7 +42,7 @@ export class NotificationService {
     }
   }
 
-  static async sendOrderStatusUpdate(order: any, status: string, user: any) {
+  static async _executeSendOrderStatusUpdate(order: any, status: string, user: any) {
     let title = 'Order Update 🔥';
     let body = `Your order #${order.order_number} has been updated to ${status}.`;
     
@@ -90,7 +90,7 @@ export class NotificationService {
   /**
    * Broadcast new product arrival
    */
-  static async broadcastNewProduct(product: any, users: any[]) {
+  static async _executeBroadcastNewProduct(product: any, users: any[]) {
     const pushPromises = users
       .filter(u => u.fcmToken)
       .map(u => this.sendPush(u.fcmToken, {
@@ -120,7 +120,7 @@ export class NotificationService {
   /**
    * Send personalized birthday wish
    */
-  static async sendBirthdayWish(user: any) {
+  static async _executeSendBirthdayWish(user: any) {
     // 1. Save to Inbox
     await saveUserNotification(user.id || user.user_id, {
       title: 'Happy Birthday! 🎂',
@@ -145,7 +145,7 @@ export class NotificationService {
   /**
    * Broadcast a custom notification campaign (Multi-channel)
    */
-  static async broadcastCustomNotification(payload: {
+  static async _executeBroadcastCustomNotification(payload: {
     title: string;
     body: string;
     image?: string;
@@ -229,7 +229,7 @@ export class NotificationService {
   /**
    * Notify Admin about a new Inquiry or Bulk Lead
    */
-  static async sendAdminInquiryNotification(inquiry: any) {
+  static async _executeSendAdminInquiryNotification(inquiry: any) {
     const adminId = 'MASTER-ADMIN';
     const isBulk = inquiry.type === 'bulk_order';
     
@@ -275,7 +275,7 @@ export class NotificationService {
   /**
    * Notify Customer that their inquiry was received
    */
-  static async sendCustomerInquiryConfirmation(userId: string, inquiry: any) {
+  static async _executeSendCustomerInquiryConfirmation(userId: string, inquiry: any) {
     // 1. In-App Notification
     await saveUserNotification(userId, {
       title: 'Inquiry Received! ⚡',
@@ -307,7 +307,7 @@ export class NotificationService {
   /**
    * Notify Customer about Inquiry Status Change
    */
-  static async sendInquiryStatusUpdate(userId: string, inquiry: any, status: string) {
+  static async _executeSendInquiryStatusUpdate(userId: string, inquiry: any, status: string) {
     let title = 'Inquiry Update! ⚡';
     let body = `The status of your inquiry for ${inquiry.orgName} has been updated to ${status}.`;
     
@@ -398,7 +398,7 @@ export class NotificationService {
   /**
    * Send Gift Card Email
    */
-  static async sendGiftEmail(to: string, name: string, code: string, amount: number, senderMessage?: string, buyer?: any) {
+  static async _executeSendGiftEmail(to: string, name: string, code: string, amount: number, senderMessage?: string, buyer?: any) {
     await MailService.sendGiftCardEmail(to, name, code, amount, senderMessage);
     if (buyer && buyer.email) {
       await MailService.sendGiftDeliveredEmail(buyer.email, buyer.name, name, code, amount, senderMessage);
@@ -408,9 +408,259 @@ export class NotificationService {
   /**
    * Send Gift Purchase Confirmation (For scheduled gifts)
    */
-  static async sendGiftPurchaseConfirmation(buyer: any, recipientName: string, code: string, amount: number, senderMessage: string | undefined, scheduledDate: string | number) {
+  static async _executeSendGiftPurchaseConfirmation(buyer: any, recipientName: string, code: string, amount: number, senderMessage: string | undefined, scheduledDate: string | number) {
     if (buyer && buyer.email) {
       await MailService.sendGiftPurchaseConfirmation(buyer.email, buyer.name, recipientName, code, amount, senderMessage, scheduledDate);
     }
   }
+
+  // --- SQS PROXIES ---
+
+  static async sendOrderConfirmed(order: any, items: any[], user: any) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'NotificationService_sendOrderConfirmed',
+            payload: { order, items, user }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'NotificationService_sendOrderConfirmed'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'NotificationService_sendOrderConfirmed'}, falling back to sync:`, err);
+        return this._executeSendOrderConfirmed(order, items, user);
+      }
+    } else {
+      return this._executeSendOrderConfirmed(order, items, user);
+    }
+  }
+
+
+  static async sendOrderStatusUpdate(order: any, status: string, user: any) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'NotificationService_sendOrderStatusUpdate',
+            payload: { order, status, user }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'NotificationService_sendOrderStatusUpdate'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'NotificationService_sendOrderStatusUpdate'}, falling back to sync:`, err);
+        return this._executeSendOrderStatusUpdate(order, status, user);
+      }
+    } else {
+      return this._executeSendOrderStatusUpdate(order, status, user);
+    }
+  }
+
+
+  static async broadcastNewProduct(product: any, users: any[]) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'NotificationService_broadcastNewProduct',
+            payload: { product, users }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'NotificationService_broadcastNewProduct'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'NotificationService_broadcastNewProduct'}, falling back to sync:`, err);
+        return this._executeBroadcastNewProduct(product, users);
+      }
+    } else {
+      return this._executeBroadcastNewProduct(product, users);
+    }
+  }
+
+
+  static async sendBirthdayWish(user: any) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'NotificationService_sendBirthdayWish',
+            payload: { user }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'NotificationService_sendBirthdayWish'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'NotificationService_sendBirthdayWish'}, falling back to sync:`, err);
+        return this._executeSendBirthdayWish(user);
+      }
+    } else {
+      return this._executeSendBirthdayWish(user);
+    }
+  }
+
+
+  static async broadcastCustomNotification(payload: {
+    title: string;
+    body: string;
+    image?: string;
+    targetType: 'all' | 'gender' | 'single';
+    targetValue?: string;
+    channels: string[]; // ['push', 'email']
+    product?: any;
+  }, users: any[]) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'NotificationService_broadcastCustomNotification',
+            payload: { payload, users }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'NotificationService_broadcastCustomNotification'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'NotificationService_broadcastCustomNotification'}, falling back to sync:`, err);
+        return this._executeBroadcastCustomNotification(payload, users);
+      }
+    } else {
+      return this._executeBroadcastCustomNotification(payload, users);
+    }
+  }
+
+
+  static async sendAdminInquiryNotification(inquiry: any) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'NotificationService_sendAdminInquiryNotification',
+            payload: { inquiry }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'NotificationService_sendAdminInquiryNotification'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'NotificationService_sendAdminInquiryNotification'}, falling back to sync:`, err);
+        return this._executeSendAdminInquiryNotification(inquiry);
+      }
+    } else {
+      return this._executeSendAdminInquiryNotification(inquiry);
+    }
+  }
+
+
+  static async sendCustomerInquiryConfirmation(userId: string, inquiry: any) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'NotificationService_sendCustomerInquiryConfirmation',
+            payload: { userId, inquiry }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'NotificationService_sendCustomerInquiryConfirmation'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'NotificationService_sendCustomerInquiryConfirmation'}, falling back to sync:`, err);
+        return this._executeSendCustomerInquiryConfirmation(userId, inquiry);
+      }
+    } else {
+      return this._executeSendCustomerInquiryConfirmation(userId, inquiry);
+    }
+  }
+
+
+  static async sendInquiryStatusUpdate(userId: string, inquiry: any, status: string) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'NotificationService_sendInquiryStatusUpdate',
+            payload: { userId, inquiry, status }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'NotificationService_sendInquiryStatusUpdate'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'NotificationService_sendInquiryStatusUpdate'}, falling back to sync:`, err);
+        return this._executeSendInquiryStatusUpdate(userId, inquiry, status);
+      }
+    } else {
+      return this._executeSendInquiryStatusUpdate(userId, inquiry, status);
+    }
+  }
+
+
+  static async sendGiftEmail(to: string, name: string, code: string, amount: number, senderMessage?: string, buyer?: any) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'NotificationService_sendGiftEmail',
+            payload: { to, name, code, amount, senderMessage, buyer }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'NotificationService_sendGiftEmail'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'NotificationService_sendGiftEmail'}, falling back to sync:`, err);
+        return this._executeSendGiftEmail(to, name, code, amount, senderMessage, buyer);
+      }
+    } else {
+      return this._executeSendGiftEmail(to, name, code, amount, senderMessage, buyer);
+    }
+  }
+
+
+  static async sendGiftPurchaseConfirmation(buyer: any, recipientName: string, code: string, amount: number, senderMessage: string | undefined, scheduledDate: string | number) {
+    if (process.env.USE_SQS === 'true' && process.env.BACKGROUND_QUEUE_URL) {
+      try {
+        const { SendMessageCommand } = require('@aws-sdk/client-sqs');
+        const { sqsClient } = require('./awsClient');
+        await sqsClient.send(new SendMessageCommand({
+          QueueUrl: process.env.BACKGROUND_QUEUE_URL,
+          MessageBody: JSON.stringify({
+            taskType: 'NotificationService_sendGiftPurchaseConfirmation',
+            payload: { buyer, recipientName, code, amount, senderMessage, scheduledDate }
+          })
+        }));
+        console.log(`[SQS ENQUEUED] ${'NotificationService_sendGiftPurchaseConfirmation'} task queued.`);
+        return { success: true, queued: true };
+      } catch (err) {
+        console.error(`[SQS ERROR] Failed to queue ${'NotificationService_sendGiftPurchaseConfirmation'}, falling back to sync:`, err);
+        return this._executeSendGiftPurchaseConfirmation(buyer, recipientName, code, amount, senderMessage, scheduledDate);
+      }
+    } else {
+      return this._executeSendGiftPurchaseConfirmation(buyer, recipientName, code, amount, senderMessage, scheduledDate);
+    }
+  }
+
 }

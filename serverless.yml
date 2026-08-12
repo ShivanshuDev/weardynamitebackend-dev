@@ -26,6 +26,9 @@ provider:
     NODE_ENV: ${self:provider.stage}
     SES_REGION: ${self:provider.region}
     SES_FROM_EMAIL: "noreply@weardynamite.com"
+    USE_SQS: "true"
+    BACKGROUND_QUEUE_URL: 
+      Ref: WeardynamiteBackgroundTaskQueue
 
   iam:
     role:
@@ -49,6 +52,14 @@ provider:
             - "ses:SendEmail"
             - "ses:SendRawEmail"
           Resource: "*"
+        - Effect: "Allow"
+          Action:
+            - "sqs:SendMessage"
+            - "sqs:ReceiveMessage"
+            - "sqs:DeleteMessage"
+            - "sqs:GetQueueAttributes"
+          Resource:
+            Fn::GetAtt: [ WeardynamiteBackgroundTaskQueue, Arn ]
 
 custom:
   dotenv:
@@ -67,3 +78,19 @@ functions:
       - httpApi:
           path: '*'
           method: '*'
+
+  backgroundWorker:
+    handler: dist/workers/backgroundWorker.handler
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt: [ WeardynamiteBackgroundTaskQueue, Arn ]
+          batchSize: 10
+
+resources:
+  Resources:
+    WeardynamiteBackgroundTaskQueue:
+      Type: "AWS::SQS::Queue"
+      Properties:
+        QueueName: "weardynamite-background-tasks-${self:provider.stage}"
+        VisibilityTimeout: 60
