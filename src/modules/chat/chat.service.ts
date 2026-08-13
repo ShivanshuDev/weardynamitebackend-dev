@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { docClient, MAIN_TABLE } from '../../utils/awsClient';
-import { ScanCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { ScanCommand, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'fake-key-for-now');
 
@@ -59,6 +59,25 @@ export class ChatService {
       ...formattedHistory,
       { role: 'user', parts: [{ text: message }] }
     ];
+
+    // Log chat to DB for analytics
+    try {
+      const dateStr = new Date().toISOString().split('T')[0];
+      const timeStr = new Date().toISOString();
+      await docClient.send(new PutCommand({
+        TableName: MAIN_TABLE,
+        Item: {
+          PK: `CHATLOG#${dateStr}`,
+          SK: `${timeStr}#${Math.random().toString(36).substr(2, 9)}`,
+          entity_type: 'CHATLOG',
+          query: message,
+          intent: 'general', // We will update this if a function is called
+          timestamp: timeStr
+        }
+      }));
+    } catch (e) {
+      console.error('Error logging chat', e);
+    }
 
     try {
       const result = await model.generateContent({ contents });

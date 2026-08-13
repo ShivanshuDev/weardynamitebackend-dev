@@ -1,4 +1,4 @@
-import { docClient, INVENTORY_TABLE } from '../../utils/awsClient';
+import { docClient, INVENTORY_TABLE, MAIN_TABLE } from '../../utils/awsClient';
 import { cache } from '../../utils/redisClient';
 import { UpdateCommand, QueryCommand, PutCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 import * as ProductService from '../product/product.service';
@@ -39,6 +39,11 @@ export const trackVisit = async (payload: any) => {
         hour: hourStr,
         device,
         source,
+        os: payload.os || 'Unknown',
+        browser: payload.browser || 'Unknown',
+        city: payload.city || 'Unknown',
+        country: payload.country || 'Unknown',
+        ip: payload.ip || 'Unknown',
         timestamp: dateObj.toISOString()
       }
     })
@@ -74,22 +79,33 @@ export const trackSearch = async (query: string) => {
   return { success: true };
 };
 
-export const getOverview = async (timeframe: string = 'Last 7 Days') => {
+export const getOverview = async (timeframe: string = 'Last 7 Days', customStart?: string, customEnd?: string) => {
   let startDate = new Date();
   startDate.setHours(0,0,0,0);
   let endDate = new Date();
   endDate.setHours(23,59,59,999);
 
-  if (timeframe === 'Last 7 Days') startDate.setDate(endDate.getDate() - 7);
-  else if (timeframe === 'Last 30 Days') startDate.setDate(endDate.getDate() - 30);
-  else if (timeframe === 'This Month') startDate.setDate(1);
-  else if (timeframe === 'This Year') { startDate.setMonth(0); startDate.setDate(1); }
+  if (timeframe === 'Custom' && customStart && customEnd) {
+    startDate = new Date(customStart);
+    startDate.setHours(0,0,0,0);
+    endDate = new Date(customEnd);
+    endDate.setHours(23,59,59,999);
+  } else if (timeframe === 'Last 7 Days') {
+    startDate.setDate(endDate.getDate() - 7);
+  } else if (timeframe === 'Last 30 Days') {
+    startDate.setDate(endDate.getDate() - 30);
+  } else if (timeframe === 'This Month') {
+    startDate.setDate(1);
+  } else if (timeframe === 'This Year') { 
+    startDate.setMonth(0); startDate.setDate(1); 
+  }
 
   // 1. Fetch Visits and Demographics from Advanced Tracking
   let totalVisits = 0;
   const devices: Record<string, number> = { Desktop: 0, Mobile: 0 };
   const sources: Record<string, number> = { Direct: 0, Google: 0, Facebook: 0, Instagram: 0, Referral: 0 };
   const hours: Record<string, number> = {};
+  let recentVisits: any[] = [];
 
   try {
     // Note: In production with massive scale, use GSI or Athena. Using Query for PK + Filter for dates here.
@@ -111,7 +127,19 @@ export const getOverview = async (timeframe: string = 'Last 7 Days') => {
       if (item.device) devices[item.device] = (devices[item.device] || 0) + 1;
       if (item.source) sources[item.source] = (sources[item.source] || 0) + 1;
       if (item.hour) hours[item.hour] = (hours[item.hour] || 0) + 1;
+      
+      recentVisits.push({
+        timestamp: item.timestamp || item.date,
+        device: item.device || 'Unknown',
+        os: item.os || 'Unknown',
+        browser: item.browser || 'Unknown',
+        location: (item.city && item.country) ? `${item.city}, ${item.country}` : 'Unknown'
+      });
     });
+
+    // Sort by most recent first and take up to 100
+    recentVisits.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    recentVisits = recentVisits.slice(0, 100);
   } catch (e) {
     console.error('Error fetching advanced visits', e);
   }
@@ -170,9 +198,10 @@ export const getOverview = async (timeframe: string = 'Last 7 Days') => {
     // Using scan for analytics purpose on orders, typically you'd aggregate this on write or use GSI
     const ordersRes = await docClient.send(
       new ScanCommand({
-        TableName: process.env.DYNAMODB_TABLE || 'weardynamite-orders',
-        FilterExpression: 'created_at BETWEEN :start AND :end',
+        TableName: MAIN_TABLE,
+        FilterExpression: 'begins_with(PK, :orderPrefix) AND created_at BETWEEN :start AND :end',
         ExpressionAttributeValues: {
+          ':orderPrefix': 'ORDER#',
           ':start': startDate.toISOString(),
           ':end': endDate.toISOString()
         }
@@ -221,6 +250,35 @@ export const getOverview = async (timeframe: string = 'Last 7 Days') => {
 
   const cartAbandonmentRate = (abandonedCarts + orderCount) > 0 ? (abandonedCarts / (abandonedCarts + orderCount)) * 100 : 0;
 
+  // 6. Fetch Chatbot Analytics
+  let chatInsights = [];
+  try {
+    const chatRes = await docClient.send(
+      new ScanCommand({
+        TableName: MAIN_TABLE,
+        FilterExpression: 'begins_with(PK, :prefix) AND #ts BETWEEN :start AND :end',
+        ExpressionAttributeNames: { '#ts': 'timestamp' },
+        ExpressionAttributeValues: {
+          ':prefix': 'CHATLOG#',
+          ':start': startDate.toISOString(),
+          ':end': endDate.toISOString()
+        }
+      })
+    );
+    
+    const chats = chatRes.Items || [];
+    // Sort by most recent
+    chats.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    
+    chatInsights = chats.slice(0, 15).map(c => ({
+      query: c.query,
+      intent: c.intent || 'general',
+      timestamp: c.timestamp
+    }));
+  } catch (e) {
+    console.error('Error fetching chat logs', e);
+  }
+
   return {
     timeframe,
     totalVisits,
@@ -234,6 +292,8 @@ export const getOverview = async (timeframe: string = 'Last 7 Days') => {
     sources,
     hours,
     topSearches,
-    mostDemanded
+    mostDemanded,
+    recentVisits,
+    chatInsights
   };
 };

@@ -388,7 +388,9 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
 
   // Fire background notifications
   const user = await getProfile(userId);
-  NotificationService.sendOrderConfirmed(orderSummary, processedItems, user).catch(console.error);
+  if (paymentMethod === 'COD') {
+    NotificationService.sendOrderConfirmed(orderSummary, processedItems, user).catch(console.error);
+  }
 
   return { order_id: orderId, order_number: orderNumber, total_amount: totalAmount, status: 'Pending' };
 };
@@ -408,7 +410,7 @@ export const getUserOrders = async (userId: string) => {
     ExpressionAttributeValues: { ':pk': `USER#${userId}` },
     ScanIndexForward: false // Newest first
   }));
-  const result = Items || [];
+  const result = (Items || []).filter(o => o.payment_status !== 'Awaiting Payment' && o.payment_status !== 'Failed');
   await cache.set(cacheKey, result, 300);
   return result;
 };
@@ -464,7 +466,7 @@ export const adminListOrders = async (filters: { status?: string; search?: strin
       ExpressionAttributeValues: { ':pk': `STATUS#${filters.status}` },
       ScanIndexForward: false
     }));
-    orders = Items || [];
+    orders = (Items || []).filter(o => o.payment_status !== 'Awaiting Payment' && o.payment_status !== 'Failed');
   } else {
     const { Items } = await docClient.send(new QueryCommand({
       TableName: MAIN_TABLE,
@@ -473,7 +475,7 @@ export const adminListOrders = async (filters: { status?: string; search?: strin
       ExpressionAttributeValues: { ':pk': 'ALL_ORDERS' },
       ScanIndexForward: false
     }));
-    orders = Items || [];
+    orders = (Items || []).filter(o => o.payment_status !== 'Awaiting Payment' && o.payment_status !== 'Failed');
   }
 
   await cache.set(cacheKey, orders, 300);
@@ -487,20 +489,54 @@ export const updateOrderStatus = async (orderId: string, status: string) => {
   const order: any = await getOrderDetail(orderId);
   const now = Date.now();
 
+  let dbStatus = status;
+  if (status === 'Payment_Failed') dbStatus = 'Cancelled';
+  if (status === 'Pending_Online_Success') dbStatus = 'Pending';
+
   await docClient.send(new UpdateCommand({
     TableName: MAIN_TABLE,
     Key: { PK: `ORDER#${orderId}`, SK: 'SUMMARY' },
     UpdateExpression: 'SET #st = :status, GSI2PK = :gsi, updated_at = :now',
     ExpressionAttributeNames: { '#st': 'status' },
     ExpressionAttributeValues: {
-      ':status': status,
-      ':gsi': `STATUS#${status}`,
+      ':status': dbStatus,
+      ':gsi': `STATUS#${dbStatus}`,
       ':now': now
     }
   }));
+  // Handle Restock on Cancellation
+  if (dbStatus === 'Cancelled' || dbStatus === 'Returned') {
+    const orderItems = order.items || [];
+    for (const item of orderItems) {
+      const { Item: product } = await docClient.send(new GetCommand({
+        TableName: MAIN_TABLE,
+        Key: { PK: `PRODUCT#${item.product_id}`, SK: 'METADATA' }
+      }));
+      
+      if (product && product.variants) {
+        const variantIndex = product.variants.findIndex((v: any) => v.color === item.color);
+        if (variantIndex > -1) {
+          const sizeIndex = product.variants[variantIndex].sizes.findIndex((s: any) => s.size === item.size);
+          if (sizeIndex > -1) {
+            await docClient.send(new UpdateCommand({
+              TableName: MAIN_TABLE,
+              Key: { PK: `PRODUCT#${item.product_id}`, SK: 'METADATA' },
+              UpdateExpression: `SET variants[${variantIndex}].sizes[${sizeIndex}].stock = variants[${variantIndex}].sizes[${sizeIndex}].stock + :qty, 
+                                 available_stock = available_stock + :qty, 
+                                 current_stock = current_stock + :qty,
+                                 #stk = #stk + :qty,
+                                 updatedAt = :now`,
+              ExpressionAttributeNames: { '#stk': 'stock' },
+              ExpressionAttributeValues: { ':qty': item.quantity, ':now': now }
+            }));
+          }
+        }
+      }
+    }
+  }
 
   // Handle Inventory: Convert Reservation to Fulfillment
-  if (status === 'Shipped' || status === 'Delivered') {
+  if (dbStatus === 'Shipped' || dbStatus === 'Delivered') {
     const orderItems = order.items || [];
     for (const item of orderItems) {
       await docClient.send(new UpdateCommand({
@@ -514,7 +550,7 @@ export const updateOrderStatus = async (orderId: string, status: string) => {
       }));
     }
 
-    if (status === 'Delivered') {
+    if (dbStatus === 'Delivered') {
       addTransaction({
         description: `Order Revenue: ${order.order_number || orderId}`,
         type: 'Credit',
@@ -527,7 +563,13 @@ export const updateOrderStatus = async (orderId: string, status: string) => {
 
   // Notify user of status change
   const user = await getProfile(order.user_id);
-  NotificationService.sendOrderStatusUpdate(order, status, user).catch(console.error);
+  if (status === 'Payment_Failed') {
+    NotificationService.sendOrderStatusUpdate(order, 'PAYMENT_FAILED', user).catch(console.error);
+  } else if (status === 'Pending_Online_Success') {
+    NotificationService.sendOrderConfirmed(order, order.items || [], user).catch(console.error);
+  } else {
+    NotificationService.sendOrderStatusUpdate(order, dbStatus, user).catch(console.error);
+  }
 
   await cache.del(`order:${orderId}`);
   await cache.delPattern('orders:list:*');

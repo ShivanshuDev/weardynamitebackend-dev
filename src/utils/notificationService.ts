@@ -63,6 +63,10 @@ export class NotificationService {
         title = 'Order Cancelled 🛑';
         body = `Your order #${order.order_number} has been cancelled. Reach out if you need help.`;
         break;
+      case 'PAYMENT_FAILED':
+        title = 'Payment Failed ⚠️';
+        body = `Order not placed. Your payment for #${order.order_number} got failed. Please try again.`;
+        break;
     }
 
     // 1. Save to Inbox

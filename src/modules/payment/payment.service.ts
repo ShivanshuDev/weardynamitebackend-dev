@@ -158,6 +158,9 @@ export const processPaymentCallback = async (payuData: any) => {
   
   if (isSuccess) {
     await OrderService.updateOrderStatus(txnid, 'Pending');
+  } else {
+    // Payment failed, automatically cancel to release reserved stock
+    await OrderService.updateOrderStatus(txnid, 'Cancelled');
   }
 
   const path = isSuccess ? '/order-success' : '/order-status';

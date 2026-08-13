@@ -12,5 +12,7 @@ router.post('/cart', AnalyticsController.trackCart);
 
 // ── Admin routes ─────────────────────────────────────────────────────────────
 router.get('/admin/overview', authenticate as any, adminOnly as any, AnalyticsController.getOverview);
+router.post('/admin/ai-insights', authenticate as any, adminOnly as any, AnalyticsController.generateAIInsights);
+router.post('/admin/ai-chat', authenticate as any, adminOnly as any, AnalyticsController.chatWithData);
 
 export default router;
