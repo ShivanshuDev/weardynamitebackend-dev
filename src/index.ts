@@ -30,6 +30,7 @@ import configRoutes from './modules/config/config.routes';
 import membershipRoutes from './modules/membership/membership.routes';
 import giftRoutes from './modules/gift/gift.routes';
 import analyticsRoutes from './modules/analytics/analytics.routes';
+import chatRoutes from './modules/chat/chat.routes';
 import { initScheduler } from './utils/scheduler';
 
 const app = express();
@@ -94,6 +95,7 @@ app.use('/api/config', configRoutes);
 app.use('/api/memberships', membershipRoutes);
 app.use('/api/gift', giftRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/chat', chatRoutes);
 
 // ─── 404 Handler ──────────────────────────────────────────────────────────────
 app.use((_req, res) => {
