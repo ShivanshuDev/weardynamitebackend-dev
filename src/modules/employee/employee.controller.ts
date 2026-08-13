@@ -1,3 +1,4 @@
+import { Request, Response } from 'express';
 import * as EmployeeService from './employee.service';
 import { MailService } from '../../utils/mailService';
 

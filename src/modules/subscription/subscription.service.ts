@@ -100,7 +100,7 @@ export const subscribe = async (data: { email: string; name?: string; phone?: st
         UpdateExpression: 'SET emailStatus = :status, deliveryError = :err',
         ExpressionAttributeValues: {
           ':status': result.success ? 'Sent' : 'Failed',
-          ':err': result.error || null
+          ':err': (result as any).error || null
         }
       }));
     } catch (err) {

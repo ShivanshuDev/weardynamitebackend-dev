@@ -11,7 +11,12 @@ const sectionUpdater = (section: string) => async (req: Request, res: Response) 
 
 export const updateCmsByPath = async (req: Request, res: Response) => {
   try {
-    const rawPath = req.params[0] || '';
+    let rawPath = '';
+    if (Array.isArray(req.params.path)) {
+      rawPath = req.params.path.join('/');
+    } else {
+      rawPath = String(req.params.path || req.params[0] || '');
+    }
     const path = rawPath.replace(/\//g, '.').replace(/^\.|\.$/g, '');
     res.json(await CmsService.updateCmsSection(path, req.body));
   } catch (e: any) {

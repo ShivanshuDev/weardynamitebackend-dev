@@ -5,7 +5,7 @@ import { MailService } from '../../utils/mailService';
 
 export const createQuotation = async (req: AuthRequest, res: Response) => {
   try {
-    const creatorName = req.user?.name || req.user?.id || 'admin';
+    const creatorName = (req.user as any)?.name || req.user?.id || 'admin';
     const quotation = await QuotationService.createQuotation({
       ...req.body,
       user_info: creatorName
@@ -18,7 +18,7 @@ export const createQuotation = async (req: AuthRequest, res: Response) => {
 
 export const getQuotation = async (req: Request, res: Response) => {
   try {
-    const quotation = await QuotationService.getQuotation(req.params.id);
+    const quotation = await QuotationService.getQuotation(String(req.params.id));
     res.json(quotation);
   } catch (e: any) {
     res.status(404).json({ message: e.message });
@@ -53,7 +53,7 @@ export const listQuotations = async (req: Request, res: Response) => {
 
 export const updateQuotation = async (req: Request, res: Response) => {
   try {
-    const quotation = await QuotationService.updateQuotation(req.params.id, req.body);
+    const quotation = await QuotationService.updateQuotation(String(req.params.id), req.body);
     res.json(quotation);
   } catch (e: any) {
     res.status(400).json({ message: e.message });
@@ -66,7 +66,7 @@ export const updateQuotationStatus = async (req: Request, res: Response) => {
     if (!status) {
       return res.status(400).json({ message: 'Status is required' });
     }
-    const quotation = await QuotationService.updateQuotationStatus(req.params.id, status);
+    const quotation = await QuotationService.updateQuotationStatus(String(req.params.id), status);
     res.json(quotation);
   } catch (e: any) {
     res.status(400).json({ message: e.message });
@@ -75,7 +75,7 @@ export const updateQuotationStatus = async (req: Request, res: Response) => {
 
 export const convertToOrder = async (req: Request, res: Response) => {
   try {
-    const result = await QuotationService.convertToOrder(req.params.id);
+    const result = await QuotationService.convertToOrder(String(req.params.id));
     res.status(201).json(result);
   } catch (e: any) {
     res.status(400).json({ message: e.message });
@@ -84,7 +84,7 @@ export const convertToOrder = async (req: Request, res: Response) => {
 
 export const sendQuotation = async (req: Request, res: Response) => {
   try {
-    const quotation = await QuotationService.getQuotation(req.params.id);
+    const quotation = await QuotationService.getQuotation(String(req.params.id));
     const { pdfBase64 } = req.body;
     let customPdfBuffer: Buffer | undefined = undefined;
     if (pdfBase64) {
@@ -104,7 +104,7 @@ export const sendQuotation = async (req: Request, res: Response) => {
       if (quotation.status === 'Draft') {
         updates.status = 'Sent';
       }
-      const updatedQuotation = await QuotationService.updateQuotation(req.params.id, updates);
+      const updatedQuotation = await QuotationService.updateQuotation(String(req.params.id), updates);
       res.json({ message: 'Quotation email dispatched successfully', quotation: updatedQuotation });
     } else {
       res.status(500).json({ message: 'Failed to dispatch email' });

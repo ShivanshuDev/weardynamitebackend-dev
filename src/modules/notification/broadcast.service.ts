@@ -90,7 +90,8 @@ export const executeBroadcast = async (campaign: NotificationCampaign) => {
     }, targets);
 
     // 3. Update Campaign Status
-    const totalSent = (results.pushSent || 0) + (results.emailSent || 0);
+    const resAny = results as any;
+    const totalSent = (resAny.pushSent || 0) + (resAny.emailSent || 0);
     const updated = { ...campaign, status: 'Sent' as const, sentCount: totalSent, results };
 
     await docClient.send(new PutCommand({ TableName: MAIN_TABLE, Item: updated }));

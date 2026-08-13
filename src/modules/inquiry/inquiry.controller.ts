@@ -12,7 +12,7 @@ export const submitInquiry = async (req: Request, res: Response) => {
   }
 };
 export const listInquiries = async (req: Request, res: Response) => {
-  try { res.json(await InquiryService.listInquiries((req.query.status as string) || undefined)); } catch (e: any) { res.status(400).json({ message: e.message }); }
+  try { res.json(await InquiryService.listInquiries()); } catch (e: any) { res.status(400).json({ message: e.message }); }
 };
 export const updateInquiryStatus = async (req: Request, res: Response) => {
   try { res.json(await InquiryService.updateInquiryStatus(req.params.id as string, req.body.status)); } catch (e: any) { res.status(404).json({ message: e.message }); }

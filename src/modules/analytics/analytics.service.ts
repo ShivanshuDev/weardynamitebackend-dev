@@ -204,9 +204,8 @@ export const getOverview = async (timeframe: string = 'Last 7 Days') => {
   try {
     const cartKeys = await cache.keys('cart:*');
     for (const key of cartKeys) {
-      const dataStr = await cache.get(key);
-      if (dataStr) {
-        const data = JSON.parse(dataStr);
+      const data = await cache.get(key) as any;
+      if (data) {
         if (data.status === 'converted') {
           // Already converted
         } else {

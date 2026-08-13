@@ -85,6 +85,49 @@ class RedisClient {
       console.error(`[REDIS DELPATTERN ERROR] ${pattern}:`, e);
     }
   }
+
+  async setex(key: string, ttlSeconds: number, value: any): Promise<void> {
+    if (!this.isConnected || !this.client) return;
+    try {
+      const data = typeof value === 'string' ? value : JSON.stringify(value);
+      await this.client.setex(key, ttlSeconds, data);
+    } catch (e) {
+      console.error(`[REDIS SETEX ERROR] ${key}:`, e);
+    }
+  }
+
+  async zincrby(key: string, increment: number, member: string): Promise<string | null> {
+    if (!this.isConnected || !this.client) return null;
+    try {
+      return await this.client.zincrby(key, increment, member);
+    } catch (e) {
+      console.error(`[REDIS ZINCRBY ERROR] ${key}:`, e);
+      return null;
+    }
+  }
+
+  async zrevrange(key: string, start: number, stop: number, withScores?: string): Promise<string[]> {
+    if (!this.isConnected || !this.client) return [];
+    try {
+      if (withScores === 'WITHSCORES') {
+        return await this.client.zrevrange(key, start, stop, 'WITHSCORES');
+      }
+      return await this.client.zrevrange(key, start, stop);
+    } catch (e) {
+      console.error(`[REDIS ZREVRANGE ERROR] ${key}:`, e);
+      return [];
+    }
+  }
+
+  async keys(pattern: string): Promise<string[]> {
+    if (!this.isConnected || !this.client) return [];
+    try {
+      return await this.client.keys(pattern);
+    } catch (e) {
+      console.error(`[REDIS KEYS ERROR] ${pattern}:`, e);
+      return [];
+    }
+  }
 }
 
 export const cache = new RedisClient();

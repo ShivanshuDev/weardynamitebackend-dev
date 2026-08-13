@@ -761,7 +761,7 @@ export class MailService {
       // Header Section (Aggressively Compressed)
       doc.rect(0, 0, 595.28, 90).fill(primaryColor);
       doc.fillColor('#ffffff').fontSize(20).font('Helvetica-Bold').text('PERSONNEL APPLICATION FORM', 50, 30);
-      doc.fontSize(8.5).font('Helvetica').text('WEARDYNAMITE CLOTHING CO. | OFFICIAL COLLECTIVE RECORD', 50, 55, { letterSpacing: 2 });
+      doc.fontSize(8.5).font('Helvetica').text('WEARDYNAMITE CLOTHING CO. | OFFICIAL COLLECTIVE RECORD', 50, 55, { characterSpacing: 2 });
 
       // ISSUED_ON / EMP_ID
       doc.fontSize(8).text(`ISSUED_ON: ${new Date().toLocaleDateString()}`, 450, 32);
@@ -1676,7 +1676,7 @@ export class MailService {
             </div>
           </div>
 
-          <div style="background-color: #000000; padding: 20px; text-align: center; font-size: 11px; color: rgba(255,255,255,0.4); text-transform: uppercase;">
+          <div style="background-color: #000000; padding: 20px; text-align: center; font-size: 11px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 1px;">
             WearDynamite. Institutional Grade Luxury Streetwear.
           </div>
         </div>
@@ -1684,5 +1684,16 @@ export class MailService {
       </html>
     `;
   }
-}
 
+  static getOrderStatusTemplate(name: string, order: any, status: string): string {
+    return `<h1>Order ${status}</h1><p>Hi ${name}, your order #${order.order_number} is now ${status}.</p>`;
+  }
+
+  static getNewProductTemplate(name: string, product: any): string {
+    return `<h1>New Product Drop!</h1><p>Hi ${name}, check out our new ${product.title}!</p>`;
+  }
+
+  static getBirthdayTemplate(name: string): string {
+    return `<h1>Happy Birthday, ${name}!</h1><p>Enjoy a special gift on us.</p>`;
+  }
+}

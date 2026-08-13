@@ -73,7 +73,7 @@ export const toggleFavorite = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
     const { productId } = req.params;
-    const result = await OrderService.toggleFavorite(userId, productId);
+    const result = await OrderService.toggleFavorite(userId, String(productId));
     res.json(result);
   } catch (e: any) {
     res.status(400).json({ message: e.message });
@@ -85,7 +85,8 @@ export const toggleFavorite = async (req: AuthRequest, res: Response) => {
 export const placeOrder = async (req: AuthRequest, res: Response) => {
   try {
     const userId = req.user!.id;
-    const order = await OrderService.placeOrder(userId, req.body);
+    const idempotencyKey = req.headers['x-idempotency-key'] as string | undefined;
+    const order = await OrderService.placeOrder(userId, req.body, idempotencyKey);
     res.status(201).json(order);
   } catch (e: any) {
     const status = e.message.includes('reached limit') ? 429 : 400;

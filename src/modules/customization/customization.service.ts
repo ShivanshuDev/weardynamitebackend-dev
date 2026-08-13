@@ -49,3 +49,9 @@ export const updateCustomizationStatus = async (id: string, status: string) => {
   await cache.delPattern('customizations:list:*');
   return { updated: true, status };
 };
+
+export const submitPrintCustomization = (data: any) => createCustomization({...data, type: 'print'});
+export const submitEmbroideryCustomization = (data: any) => createCustomization({...data, type: 'embroidery'});
+export const submitDesignStudioOrder = (data: any) => createCustomization({...data, type: 'design_studio'});
+export const listCustomOrders = (query: any) => listCustomizations();
+export const updateCustomOrderStatus = (id: string, status: string) => updateCustomizationStatus(id, status);

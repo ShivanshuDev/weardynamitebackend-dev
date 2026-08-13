@@ -40,7 +40,7 @@ export const getMyMembership = async (req: AuthRequest, res: Response) => {
 
 export const getMembership = async (req: Request, res: Response) => {
   try {
-    const membership = await MembershipService.getMembership(req.params.userId);
+    const membership = await MembershipService.getMembership(String(req.params.userId));
     if (!membership) {
        res.status(404).json({ message: 'Membership not found' });
        return;

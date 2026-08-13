@@ -79,7 +79,7 @@ export const createExpense = async (data: { description: string; category: strin
     type: 'Debit',
     category: data.category,
     amount: Number(data.amount),
-    date: expenseDateTs,
+    date: timestamp,
     referenceId: id
   });
 

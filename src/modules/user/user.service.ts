@@ -235,7 +235,7 @@ export const listUserNotifications = async (userId: string, limit: number = 20) 
 export const markNotificationRead = async (userId: string, notifId: string) => {
   // First, find the specific SK since it has a timestamp
   const all = await listUserNotifications(userId, 50);
-  const target = all.find(n => n.id === notifId || n.SK.includes(notifId));
+  const target = all.find((n: any) => n.id === notifId || n.SK.includes(notifId));
   
   if (!target) return null;
 
@@ -267,7 +267,7 @@ export const getPayments = async (userId: string) => {
   // 1. Orders
   try {
     const orders = await getUserOrders(userId);
-    orders.forEach(o => {
+    orders.forEach((o: any) => {
       payments.push({
         transactionId: o.txnid || o.order_id || (o.PK && o.PK.includes('#') ? o.PK.split('#')[1] : 'N/A'),
         paidFor: 'Order',

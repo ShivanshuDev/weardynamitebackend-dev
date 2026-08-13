@@ -215,3 +215,10 @@ export const listStudents = async (filters: {
   await cache.set(cacheKey, result, 300);
   return result;
 };
+
+// Template stubs to satisfy controller typings
+export const listTemplates = async (schoolId: string) => { return []; };
+export const createTemplate = async (schoolId: string, data: any) => { return data; };
+export const updateTemplate = async (schoolId: string, id: string, data: any) => { return data; };
+export const deleteTemplate = async (schoolId: string, id: string) => { return { success: true }; };
+

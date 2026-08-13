@@ -149,7 +149,7 @@ export class NotificationService {
     title: string;
     body: string;
     image?: string;
-    targetType: 'all' | 'gender' | 'single';
+    targetType: 'all' | 'gender' | 'single' | 'employee';
     targetValue?: string;
     channels: string[]; // ['push', 'email']
     product?: any;
@@ -516,7 +516,7 @@ export class NotificationService {
     title: string;
     body: string;
     image?: string;
-    targetType: 'all' | 'gender' | 'single';
+    targetType: 'all' | 'gender' | 'single' | 'employee';
     targetValue?: string;
     channels: string[]; // ['push', 'email']
     product?: any;

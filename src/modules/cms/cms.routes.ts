@@ -28,4 +28,7 @@ router.put('/policies/faq', auth, admin, CmsController.updatePoliciesFaq);
 router.put('/policies/privacy', auth, admin, CmsController.updatePoliciesPrivacy);
 router.put('/gallery', auth, admin, CmsController.updateGallery);
 
+// Wildcard route for any other dynamic sections (e.g. /home/trendingPicks)
+router.put('/*path', auth, admin, CmsController.updateCmsByPath);
+
 export default router;

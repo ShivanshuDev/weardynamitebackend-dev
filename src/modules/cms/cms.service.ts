@@ -96,17 +96,64 @@ const getDefaultCms = () => ({
       buttonLink: '/login'
     },
     whatWeDo: {
+      isVisible: true,
       title: 'What We Do',
       subtitle: 'If you can imagine it, we can create it. From custom printed game jerseys and corporate apparel to premium hand-embroidered lehengas and saris with select silks and stones.',
       image: 'https://images.unsplash.com/photo-1558769132-cb1aea458c5e?q=80&w=1000&auto=format&fit=crop',
       buttonText: 'Customize Your Own Design',
       buttonLink: '/customize'
     },
+    trendingPicks: {
+      isVisible: true,
+      title: 'Trending Summer Picks',
+      subtitle: 'A curated drop of seasonal statements styled by our design studio.',
+      items: [
+        { name: 'Linen Collection', tag: 'COOL FABRIC', image: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&w=400', link: '/shop?category=Topwear' },
+        { name: 'Printed Tees', tag: 'STREET STYLE', image: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=400', link: '/shop?category=Topwear' },
+        { name: 'Custom Jerseys', tag: 'ATHLETIC', image: 'https://images.unsplash.com/photo-1518310383802-640c2de311b2?q=80&w=400', link: '/shop?category=Outerwear' },
+        { name: 'Utility Cargos', tag: 'FUNCTIONAL', image: 'https://images.unsplash.com/photo-1517423568366-8b83523034fd?q=80&w=400', link: '/shop?category=Bottomwear' }
+      ]
+    },
+    anatomyOfQuality: {
+      isVisible: true,
+      title: 'The Anatomy of Quality',
+      subtitle: 'A close study of the custom materials and precision finishes that define Wear Dynamite garments.',
+      items: [
+        { title: '380GSM Custom Terry', description: 'Milled in limited batches from high-staple organic cotton. Pre-shrunk and custom-dyed for a soft hand-feel and substantial weight.', image: 'https://images.unsplash.com/photo-1544816155-12df9643f363?q=80&w=600' },
+        { title: 'Custom Matte Zippers', description: 'Reinforced steel zipper lines with a dry matte finish, custom-engraved with our signature monogram tag.', image: 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?q=80&w=600' },
+        { title: 'Sashiko Embroidery', description: 'Traditional structural stitch patterns run along stress zones to maximize durability while maintaining clean visual depth.', image: 'https://images.unsplash.com/photo-1520004434532-668416a08753?q=80&w=600' }
+      ]
+    },
+    shopTheAesthetic: {
+      isVisible: true,
+      title: 'Shop The Aesthetic',
+      subtitle: 'Curated styling combinations styled by our design studio.',
+      lookId: 'EDIT 04 // LOOK 12',
+      mainImage: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000',
+      hotspots: [
+        { top: 25, left: 52, title: 'Heavy Hoodie' },
+        { top: 60, left: 48, title: 'Utility Cargo Pants' }
+      ]
+    },
+    editorial: {
+      isVisible: true,
+      badge: 'CAPSULE 01 / ESSENTIALS',
+      tag: 'Artisanal Tailoring',
+      heading: 'Sculpted for Movement',
+      text: 'Every garment from our curated series is engineered to reconcile unstructured drape with a clean, structural outline. Crafted from organic custom-milled heavyweight fleece, this capsule stands as a quiet expression of modern luxury.',
+      image: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?q=80&w=1000'
+    },
+    galleryConfig: {
+      isVisible: true,
+      title: 'The Dynamite Lookbook',
+      subtitle: 'Sleek capture of handcrafted streetwear capsules & seasonal aesthetics.'
+    },
     categories: [
       { name: "Men's Collection", buttonText: 'Shop Men', link: '/shop?category=Men', image: 'https://images.unsplash.com/photo-1617137968427-85924c800a22?q=80&w=800&auto=format&fit=crop' },
       { name: "Women's Collection", buttonText: 'Shop Women', link: '/shop?category=Women', image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=800&auto=format&fit=crop' },
       { name: "Kids' Collection", buttonText: 'Shop Kids', link: '/shop?category=Kids', image: 'https://images.unsplash.com/photo-1514090225131-7b0df0c8f180?q=80&w=800&auto=format&fit=crop' }
     ],
+    
     trustFeatures: [
       { title: 'Free Shipping', subtitle: 'On all orders above ₹100' },
       { title: '30 Days Return', subtitle: 'No questions asked policy' },

@@ -9,6 +9,7 @@ import {
 import { v4 as uuidv4 } from 'uuid';
 import { adminListUsers } from '../user/user.service';
 import { cache } from '../../utils/redisClient';
+import { NotificationService } from '../../utils/notificationService';
 
 export interface Product {
   product_id: string;
@@ -308,17 +309,28 @@ export const listProducts = async (filters: any = {}) => {
   const cached = await cache.get(cacheKey);
   if (cached) return cached as any;
 
-  const { Items } = await docClient.send(new QueryCommand(queryParams));
+  let allItems: any[] = [];
+  let lastEvaluatedKey: any = undefined;
 
-  const products = Items || [];
+  do {
+    if (lastEvaluatedKey) {
+      queryParams.ExclusiveStartKey = lastEvaluatedKey;
+    }
+    const response = await docClient.send(new QueryCommand(queryParams));
+    if (response.Items) {
+      allItems = allItems.concat(response.Items);
+    }
+    lastEvaluatedKey = response.LastEvaluatedKey;
+  } while (lastEvaluatedKey);
+
   const start = (page - 1) * limit;
 
   const result = {
-    items: products.slice(start, start + limit),
-    total: products.length,
+    items: allItems.slice(start, start + limit),
+    total: allItems.length,
     page,
     limit,
-    totalPages: Math.ceil(products.length / limit)
+    totalPages: Math.ceil(allItems.length / limit)
   };
 
   await cache.set(cacheKey, result, 300); // Cache for 5 mins

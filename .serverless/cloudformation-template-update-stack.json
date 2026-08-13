@@ -77,6 +77,12 @@
         "LogGroupName": "/aws/lambda/weardynamite-backend-dev-api"
       }
     },
+    "BackgroundWorkerLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/weardynamite-backend-dev-backgroundWorker"
+      }
+    },
     "IamRoleLambdaExecution": {
       "Type": "AWS::IAM::Role",
       "Properties": {
@@ -162,6 +168,37 @@
                     "ses:SendRawEmail"
                   ],
                   "Resource": "*"
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sqs:SendMessage",
+                    "sqs:ReceiveMessage",
+                    "sqs:DeleteMessage",
+                    "sqs:GetQueueAttributes"
+                  ],
+                  "Resource": {
+                    "Fn::GetAtt": [
+                      "WeardynamiteBackgroundTaskQueue",
+                      "Arn"
+                    ]
+                  }
+                },
+                {
+                  "Effect": "Allow",
+                  "Action": [
+                    "sqs:ReceiveMessage",
+                    "sqs:DeleteMessage",
+                    "sqs:GetQueueAttributes"
+                  ],
+                  "Resource": [
+                    {
+                      "Fn::GetAtt": [
+                        "WeardynamiteBackgroundTaskQueue",
+                        "Arn"
+                      ]
+                    }
+                  ]
                 }
               ]
             }
@@ -190,7 +227,7 @@
           "S3Bucket": {
             "Ref": "ServerlessDeploymentBucket"
           },
-          "S3Key": "serverless/weardynamite-backend/dev/1786267226454-2026-08-09T09:20:26.454Z/weardynamite-backend.zip"
+          "S3Key": "serverless/weardynamite-backend/dev/1786557637847-2026-08-12T18:00:37.847Z/weardynamite-backend.zip"
         },
         "Handler": "dist/handler.handler",
         "Runtime": "nodejs20.x",
@@ -202,6 +239,10 @@
             "NODE_ENV": "dev",
             "SES_REGION": "ap-southeast-2",
             "SES_FROM_EMAIL": "noreply@weardynamite.com",
+            "USE_SQS": "true",
+            "BACKGROUND_QUEUE_URL": {
+              "Ref": "WeardynamiteBackgroundTaskQueue"
+            },
             "PORT": "5001",
             "JWT_SECRET": "weardynamite_super_secret_jwt_key_2026",
             "JWT_EXPIRES_IN": "1d",
@@ -217,10 +258,10 @@
             "PAYU_URL": "https://test.payu.in/_payment",
             "FRONTEND_URL": "http://localhost:5173",
             "BACKEND_URL": "http://localhost:5001",
-            "GMAIL_USER": "weardynamitehub@gmail.com",
-            "GMAIL_APP_PASSWORD": "sslt igva aohs cskh",
-            "REDIS_URL": "rediss://default:gQAAAAAAAXrSAAIncDI4NzlkYTcwZDA1ZmY0OTViODU5MzFlZDNiMGU3ZGY1NHAyOTY5Nzg@pet-amoeba-96978.upstash.io:6379",
-            "CLOUDFRONT_URL": "https://weardynamite-dev-assets.s3.ap-southeast-2.amazonaws.com"
+            "CLOUDFRONT_URL": "https://weardynamite-dev-assets.s3.ap-southeast-2.amazonaws.com",
+            "GMAIL_USER": "skshivanshu1234@gmail.com",
+            "GMAIL_APP_PASSWORD": "wgfctojdjfcxhomp",
+            "REDIS_URL": "rediss://default:gQAAAAAAAXrSAAIncDI4NzlkYTcwZDA1ZmY0OTViODU5MzFlZDNiMGU3ZGY1NHAyOTY5Nzg@pet-amoeba-96978.upstash.io:6379"
           }
         },
         "Role": {
@@ -234,14 +275,101 @@
         "ApiLogGroup"
       ]
     },
-    "ApiLambdaVersionOigVHb0G8Xbjx0fPma5uffno74QhV2dL14yQ9ZvlU": {
+    "BackgroundWorkerLambdaFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Ref": "ServerlessDeploymentBucket"
+          },
+          "S3Key": "serverless/weardynamite-backend/dev/1786557637847-2026-08-12T18:00:37.847Z/weardynamite-backend.zip"
+        },
+        "Handler": "dist/workers/backgroundWorker.handler",
+        "Runtime": "nodejs20.x",
+        "FunctionName": "weardynamite-backend-dev-backgroundWorker",
+        "MemorySize": 1024,
+        "Timeout": 29,
+        "Environment": {
+          "Variables": {
+            "NODE_ENV": "dev",
+            "SES_REGION": "ap-southeast-2",
+            "SES_FROM_EMAIL": "noreply@weardynamite.com",
+            "USE_SQS": "true",
+            "BACKGROUND_QUEUE_URL": {
+              "Ref": "WeardynamiteBackgroundTaskQueue"
+            },
+            "PORT": "5001",
+            "JWT_SECRET": "weardynamite_super_secret_jwt_key_2026",
+            "JWT_EXPIRES_IN": "1d",
+            "S3_BUCKET_NAME": "weardynamite-dev-assets",
+            "DYNAMODB_TABLE_NAME": "weardynamite-dev",
+            "FIREBASE_PROJECT_ID": "weardynamite-test",
+            "FIREBASE_CLIENT_EMAIL": "firebase-adminsdk-fbsvc@weardynamite-test.iam.gserviceaccount.com",
+            "FIREBASE_PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDDy1W7rU1zu2AL\nAM8cLh0FbxmjnpSAmhnBp3oDHp+xN80Q+vl0pqAzHZlxvkWOr8kfeo4iKyn10SRF\nIlXE8buaExA0w0/VbM/lPRI2oaUMHpO1qlErJsWauJXTsyCEsPZFlvVFzXpENvrX\n6qdUtnaGSaltS4dhdH0CG2PrQ+xGrvDk3VkQs8LJGYoavsvIgu2qFgsdGq7LZV0i\ng3oduyRJnUHuSsuS2lg0C7+N6UJqT/p5FxkgTzFDCGa27rEvh2PvCaxDkADdCMoz\nKJ29o1mUybVIVndORf+YsjywdWLy/fogFxNSSHctYdWnz6Pc4fl4euXlyM2LBA3k\nyCYDyGCzAgMBAAECggEAHjeq/yCThAmGnJwe2sAJLZYEdHqce66MzBTvYTzgM4cj\nqHu7dTPkJI9sZ6AQdyGNHkUZW4+i1bPV76+JYjBWnkRT63i7QPqeqUgAIBtZcCHl\n9RMYnNrKg4L6aKZMHf57u6i9KO058f40P4+RDKNubnI+6kXOWo2SX3lftecRN6Uy\nDrp2gK2JUQE/zKShGXGtZ7n6DIHXfvBTmcJ/RJug9xtxdPdFrBOtlozqm1niEj3d\nYK8+LoFBzBEHZus102IhV0xxitTg7JLAY6Nt+eWejTDCA2V2WdB5d5oVXsjfvEKI\nM9nfvt0225jM6RLfg48V5XPd6qc6qpp+qTZ+CuPiDQKBgQDqHIa89PRQLmn0G0tj\ncz+x5WFdgIW514PYX87nX6N/jXfZDZKTtx0weLp+EaPJvE29pjj9sM8UeUzm9qEi\nXJY/rdIXYoQvjkEaM9MODDNRX5GruhIXHKbF6nT24xlZFMwdjwYXUMajYMy7k6/b\n0/dK+wlhrWD10MeUG/gGed52xwKBgQDWGa9NtNxj2OwIGVURMC0agCS4LdcA9Isi\nRsJD7IbKl9DPCDXawjRmaBjsiaKqX4X/3OMsL0PD6mzI/NEZ+iLLZ7Tr860tImTn\nGbmFYjOeMDMb/YTIsVD7/2ungL1HolRShx4UeY3uwmDfxGCPhNU7esD+at7X2HpT\nwCcr0TBqtQKBgQCU1CO39kVmv8rtu3hWtcqVTkxyg6T/uwl/QZEoN/2Zthatrtoy\n++MbkHSGdrJYKlSFryll5cQPsPl5juprDM8blmYMJb4A+X9bp/yRXqI1JftWX4jm\nlnlTMrS+yyqvHfCRDf6CTgCpln0w9jeDGaKJUUPqi60rOFnYR1uKymjpuwKBgQCJ\n7HP1QDz2CalMMl2NvBZiSwjcqZMnZ2I2S5UcQsQ2wQRgSu6+pXsyOX9M6gGjdfQR\n909ViIFENcGs3MkrzesaVA3GLu1x9QVBp13PYorULkLOlkwzKZ99J3dHqfTFr/pY\nS/kBwajAlfHoVU7LRgxDy/mGLHywWiG70D6ryJBDPQKBgEaHt5WLi6jng9ukL7j0\np0PuxOvrJMaDCtKkwHsAkhpKTxPpYAjJE10lL7q6JSRpk1gfxI0ScOH881zevjrT\nQxrfZkbbdFO1LKkbA3p3M5va8YoOu1/w7kfRwwSM9cRhRHqsS0fiLq3mdFL8mf+C\nkxFo77GiIyuMik5idASFNpSf\n-----END PRIVATE KEY-----\n",
+            "PAYU_MERCHANT_KEY": "OUzBZQ",
+            "PAYU_SALT": "luqn4DGBYHWqVu1yQrZFyEA8vOsgvitY",
+            "PAYU_CLIENT_ID": "05d3b31aba22d43cd4981b062b2fab8929b25ff4485ac087bcefaf6f0f3f0da6",
+            "PAYU_CLIENT_SECRET": "fb6b34e8f5893a4a8cddc07e5c68cede87ae9a439027fa502ee9cfa9703bab84",
+            "PAYU_URL": "https://test.payu.in/_payment",
+            "FRONTEND_URL": "http://localhost:5173",
+            "BACKEND_URL": "http://localhost:5001",
+            "CLOUDFRONT_URL": "https://weardynamite-dev-assets.s3.ap-southeast-2.amazonaws.com",
+            "GMAIL_USER": "skshivanshu1234@gmail.com",
+            "GMAIL_APP_PASSWORD": "wgfctojdjfcxhomp",
+            "REDIS_URL": "rediss://default:gQAAAAAAAXrSAAIncDI4NzlkYTcwZDA1ZmY0OTViODU5MzFlZDNiMGU3ZGY1NHAyOTY5Nzg@pet-amoeba-96978.upstash.io:6379"
+          }
+        },
+        "Role": {
+          "Fn::GetAtt": [
+            "IamRoleLambdaExecution",
+            "Arn"
+          ]
+        }
+      },
+      "DependsOn": [
+        "BackgroundWorkerLogGroup"
+      ]
+    },
+    "ApiLambdaVersionlXGE9lHOHi1lXa8znrVZwuEntyVPARHiaMCdjMpFfY": {
       "Type": "AWS::Lambda::Version",
       "DeletionPolicy": "Retain",
       "Properties": {
         "FunctionName": {
           "Ref": "ApiLambdaFunction"
         },
-        "CodeSha256": "HxgCQHMl99hpKQMsiQ27suM5RHGlnI9ARYWOJYkRuww="
+        "CodeSha256": "vzF7HONh6qcPxS0AMZYz9mU7WGW8FGvIWLOF/IDWJ7A="
+      }
+    },
+    "BackgroundWorkerLambdaVersionVKUnMEASIdcD5pd9E7aia10ehxLvAHFQ2ptsheDRSE": {
+      "Type": "AWS::Lambda::Version",
+      "DeletionPolicy": "Retain",
+      "Properties": {
+        "FunctionName": {
+          "Ref": "BackgroundWorkerLambdaFunction"
+        },
+        "CodeSha256": "vzF7HONh6qcPxS0AMZYz9mU7WGW8FGvIWLOF/IDWJ7A="
+      }
+    },
+    "BackgroundWorkerEventSourceMappingSQSWeardynamiteBackgroundTaskQueue": {
+      "Type": "AWS::Lambda::EventSourceMapping",
+      "DependsOn": [
+        "IamRoleLambdaExecution"
+      ],
+      "Properties": {
+        "BatchSize": 10,
+        "EventSourceArn": {
+          "Fn::GetAtt": [
+            "WeardynamiteBackgroundTaskQueue",
+            "Arn"
+          ]
+        },
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "BackgroundWorkerLambdaFunction",
+            "Arn"
+          ]
+        },
+        "Enabled": true
       }
     },
     "HttpApi": {
@@ -338,6 +466,13 @@
         }
       },
       "DependsOn": "HttpApiIntegrationApi"
+    },
+    "WeardynamiteBackgroundTaskQueue": {
+      "Type": "AWS::SQS::Queue",
+      "Properties": {
+        "QueueName": "weardynamite-background-tasks-dev",
+        "VisibilityTimeout": 60
+      }
     }
   },
   "Outputs": {
@@ -352,10 +487,19 @@
     "ApiLambdaFunctionQualifiedArn": {
       "Description": "Current Lambda function version",
       "Value": {
-        "Ref": "ApiLambdaVersionOigVHb0G8Xbjx0fPma5uffno74QhV2dL14yQ9ZvlU"
+        "Ref": "ApiLambdaVersionlXGE9lHOHi1lXa8znrVZwuEntyVPARHiaMCdjMpFfY"
       },
       "Export": {
         "Name": "sls-weardynamite-backend-dev-ApiLambdaFunctionQualifiedArn"
+      }
+    },
+    "BackgroundWorkerLambdaFunctionQualifiedArn": {
+      "Description": "Current Lambda function version",
+      "Value": {
+        "Ref": "BackgroundWorkerLambdaVersionVKUnMEASIdcD5pd9E7aia10ehxLvAHFQ2ptsheDRSE"
+      },
+      "Export": {
+        "Name": "sls-weardynamite-backend-dev-BackgroundWorkerLambdaFunctionQualifiedArn"
       }
     },
     "HttpApiId": {

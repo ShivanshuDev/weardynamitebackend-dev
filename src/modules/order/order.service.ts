@@ -107,9 +107,25 @@ export const toggleFavorite = async (userId: string, productId: string) => {
  * Places an order using the highly efficient Summary + Items pattern.
  * Uses TransactWrite to ensure stock reservation and order creation are atomic.
  */
-export const placeOrder = async (userId: string, data: { address_id: string; payment_method: string; items: any[]; coupon_code?: string; customer_details: any; shipping_address: any }) => {
+export const placeOrder = async (userId: string, data: { address_id: string; payment_method: string; items: any[]; coupon_code?: string; customer_details: any; shipping_address: any }, idempotencyKey?: string) => {
   const { items, address_id: addressId, payment_method: paymentMethod, coupon_code: couponCode, customer_details, shipping_address } = data;
   if (!items?.length) throw new Error('No items in order');
+
+  if (idempotencyKey) {
+    const { Item: existingRecord } = await docClient.send(new GetCommand({
+      TableName: MAIN_TABLE,
+      Key: { PK: `IDEMPOTENCY#${idempotencyKey}`, SK: `IDEMPOTENCY#${idempotencyKey}` }
+    }));
+    if (existingRecord) {
+      console.log(`[ORDER] Idempotent replay hit for key: ${idempotencyKey}`);
+      return { 
+        order_id: existingRecord.order_id, 
+        order_number: existingRecord.order_number, 
+        total_amount: existingRecord.total_amount, 
+        status: existingRecord.status 
+      };
+    }
+  }
 
   // 0. Rate Limit Check: 4 orders in 60 minutes
   const oneHourAgo = Date.now() - 3600000;
@@ -306,8 +322,40 @@ export const placeOrder = async (userId: string, data: { address_id: string; pay
     }
   });
 
+  if (idempotencyKey) {
+    transactItems.push({
+      Put: {
+        TableName: MAIN_TABLE,
+        Item: {
+          PK: `IDEMPOTENCY#${idempotencyKey}`,
+          SK: `IDEMPOTENCY#${idempotencyKey}`,
+          order_id: orderId,
+          order_number: orderNumber,
+          total_amount: totalAmount,
+          status: 'Pending',
+          created_at: now
+        },
+        ConditionExpression: 'attribute_not_exists(PK)'
+      }
+    });
+  }
+
   // 4. Finalize Transaction
-  await docClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
+  try {
+    await docClient.send(new TransactWriteCommand({ TransactItems: transactItems }));
+  } catch (err: any) {
+    if (err.name === 'TransactionCanceledException' && idempotencyKey) {
+      const { Item: doubleCheck } = await docClient.send(new GetCommand({
+        TableName: MAIN_TABLE,
+        Key: { PK: `IDEMPOTENCY#${idempotencyKey}`, SK: `IDEMPOTENCY#${idempotencyKey}` }
+      }));
+      if (doubleCheck) {
+        console.log(`[ORDER] Idempotent race-condition averted for key: ${idempotencyKey}`);
+        return { order_id: doubleCheck.order_id, order_number: doubleCheck.order_number, total_amount: doubleCheck.total_amount, status: doubleCheck.status };
+      }
+    }
+    throw err;
+  }
 
   // Real-time Cache Invalidation for affected products and orders
   try {
@@ -509,7 +557,7 @@ export const updateOrderTracking = async (orderId: string, trackingNumber: strin
   // Notify user of tracking update
   const order = await getOrderDetail(orderId);
   const user = await getProfile(order.user_id);
-  NotificationService.sendOrderShipped(order, trackingNumber, courier, user).catch(console.error);
+  NotificationService.sendOrderStatusUpdate(order, 'Shipped', user).catch(console.error);
 
   await cache.del(`order:${orderId}`);
   await cache.delPattern('orders:list:*');

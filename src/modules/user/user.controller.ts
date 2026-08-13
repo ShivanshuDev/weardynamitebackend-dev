@@ -63,7 +63,7 @@ export const getNotifications = async (req: AuthRequest, res: Response) => {
 };
 
 export const markNotificationRead = async (req: AuthRequest, res: Response) => {
-  try { res.json(await UserService.markNotificationRead(req.user!.id, req.params.id)); }
+  try { res.json(await UserService.markNotificationRead(req.user!.id, String(req.params.id))); }
   catch (e: any) { res.status(400).json({ message: e.message }); }
 };
 

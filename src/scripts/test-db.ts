@@ -27,10 +27,10 @@ async function test() {
   console.log('\n--- Testing Product Creation ---');
   try {
     const newProduct = await ProductService.createProduct({
-      name: 'Test Product ' + Date.now(),
+      product_name: 'Test Product ' + Date.now(),
       category: 'Test',
       sku: 'TEST-SKU-' + Date.now(),
-      price: 100
+      mrp: 100
     });
     console.log('Created Product ID:', newProduct.productId);
   } catch (e) {
